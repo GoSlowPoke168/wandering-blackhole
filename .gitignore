@@ -3,3 +3,7 @@ smoke.txt
 .assembled.frag
 probes/native/*.obj
 probes/native/*.exe
+native/obj/
+native/*.exe
+native/*.pdb
+native/*.ilk
