@@ -1,0 +1,31 @@
+--- probe A boot ok ---
+probe A started: VideoFrame via MediaStreamTrackProcessor | renderer ANGLE (Intel, Intel(R) UHD Graphics (0x0000A78B) Direct3D11 vs_5_0 ps_5_0, D3D11)
+present 1.0 fps | capture 1.0 fps | interval 1018.6 ms | texImage2D 4.90 ms | LATENCY 0 frames ~0.0 ms (avg 0.00 f, n=1) | bad 0
+present 42.3 fps | capture 42.3 fps | interval 31.4 ms | texImage2D 0.70 ms | LATENCY 0 frames ~15.8 ms (avg 0.67 f, n=6) | bad 0
+present 40.0 fps | capture 40.0 fps | interval 21.8 ms | texImage2D 0.40 ms | LATENCY 1 frames ~15.0 ms (avg 0.60 f, n=10) | bad 0
+present 37.1 fps | capture 37.1 fps | interval 27.0 ms | texImage2D 0.50 ms | LATENCY 0 frames ~13.5 ms (avg 0.50 f, n=14) | bad 0
+present 37.9 fps | capture 37.9 fps | interval 28.4 ms | texImage2D 0.50 ms | LATENCY 0 frames ~11.7 ms (avg 0.44 f, n=18) | bad 0
+present 38.3 fps | capture 38.3 fps | interval 31.1 ms | texImage2D 0.50 ms | LATENCY 1 frames ~11.9 ms (avg 0.45 f, n=22) | bad 0
+present 34.0 fps | capture 34.0 fps | interval 35.7 ms | texImage2D 0.60 ms | LATENCY 1 frames ~12.5 ms (avg 0.42 f, n=26) | bad 0
+present 35.0 fps | capture 35.0 fps | interval 31.6 ms | texImage2D 0.60 ms | LATENCY 1 frames ~11.4 ms (avg 0.40 f, n=30) | bad 0
+present 35.9 fps | capture 35.9 fps | interval 27.2 ms | texImage2D 0.60 ms | LATENCY 1 frames ~11.5 ms (avg 0.41 f, n=34) | bad 0
+present 39.7 fps | capture 39.7 fps | interval 25.4 ms | texImage2D 0.40 ms | LATENCY 1 frames ~9.9 ms (avg 0.39 f, n=38) | bad 0
+present 38.2 fps | capture 38.2 fps | interval 31.7 ms | texImage2D 0.60 ms | LATENCY 0 frames ~11.2 ms (avg 0.43 f, n=42) | bad 0
+present 36.8 fps | capture 36.8 fps | interval 27.8 ms | texImage2D 0.70 ms | LATENCY 0 frames ~11.8 ms (avg 0.43 f, n=46) | bad 0
+present 39.2 fps | capture 39.2 fps | interval 31.2 ms | texImage2D 0.40 ms | LATENCY 0 frames ~10.2 ms (avg 0.40 f, n=50) | bad 0
+present 34.9 fps | capture 34.9 fps | interval 23.3 ms | texImage2D 1.10 ms | LATENCY 1 frames ~11.1 ms (avg 0.39 f, n=54) | bad 0
+present 36.5 fps | capture 36.5 fps | interval 33.9 ms | texImage2D 0.60 ms | LATENCY 0 frames ~11.4 ms (avg 0.41 f, n=58) | bad 0
+present 35.6 fps | capture 35.6 fps | interval 28.6 ms | texImage2D 0.40 ms | LATENCY 0 frames ~10.9 ms (avg 0.39 f, n=62) | bad 0
+present 37.5 fps | capture 37.5 fps | interval 21.9 ms | texImage2D 0.50 ms | LATENCY 0 frames ~10.5 ms (avg 0.39 f, n=66) | bad 0
+present 38.0 fps | capture 38.0 fps | interval 30.6 ms | texImage2D 0.60 ms | LATENCY 0 frames ~10.2 ms (avg 0.39 f, n=70) | bad 0
+present 37.7 fps | capture 37.7 fps | interval 28.6 ms | texImage2D 0.70 ms | LATENCY 1 frames ~10.8 ms (avg 0.41 f, n=74) | bad 0
+
+=== PROBE A SUMMARY (Chromium desktopCapturer, default) ===
+renderer       ANGLE (Intel, Intel(R) UHD Graphics (0x0000A78B) Direct3D11 vs_5_0 ps_5_0, D3D11)
+frame source   VideoFrame via MediaStreamTrackProcessor
+capture res    2448x1530   (canvas 2562x1530)
+present fps    35.5
+capture fps    37.7
+texImage2D     0.57 ms
+LATENCY        0.39 frames  ~11.0 ms
+samples        n=77, bad=0

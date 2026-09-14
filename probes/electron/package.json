@@ -1,0 +1,13 @@
+{
+  "name": "m0-probe-electron",
+  "version": "0.0.0",
+  "private": true,
+  "description": "THROWAWAY M0 capture probe - not part of the product",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

@@ -1,0 +1,24 @@
+=== PROBE C - real blackhole.glsl, static texture ===
+renderer       ANGLE (Intel, Intel(R) UHD Graphics (0x0000A78B) Direct3D11 vs_5_0 ps_5_0, D3D11)
+resolution     2562x1530
+TOKEN_LEVEL uniform swap: ok
+shader compiled + linked CLEAN (no source edits beyond the define swap)
+
+level |    fps |  ms/frame | verdict@60Hz | verdict@165Hz
+------+--------+-----------+--------------+--------------
+  -> starting level 0 ...
+    0 | 1414.0 |      0.71 |           OK |            OK
+  -> starting level 0.05 ...
+ 0.05 |  179.8 |      5.56 |           OK |            OK
+  -> starting level 0.15 ...
+ 0.15 |  174.5 |      5.73 |           OK |            OK
+  -> starting level 0.3 ...
+  0.3 |  160.9 |      6.22 |           OK |   drops to 60
+  -> starting level 0.5 ...
+  0.5 |  136.0 |      7.35 |           OK |   drops to 60
+  -> starting level 0.75 ...
+ 0.75 |  105.9 |      9.44 |           OK |   drops to 60
+  -> starting level 1 ...
+    1 |   76.6 |     13.05 |           OK |   drops to 60
+
+worst case: level 1 -> 76.6 fps (13.0 ms/frame)

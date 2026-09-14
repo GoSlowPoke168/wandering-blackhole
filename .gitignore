@@ -1,0 +1,5 @@
+node_modules/
+smoke.txt
+.assembled.frag
+probes/native/*.obj
+probes/native/*.exe
