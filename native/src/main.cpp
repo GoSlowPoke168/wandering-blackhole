@@ -6,12 +6,15 @@
 //   - self-capture, by looking for the ring's magenta in the captured desktop
 // Usage: overlay.exe [--seconds N] [--full] [--nometer]      Ctrl+Alt+Q quits.
 #include "overlay.h"
+#include <dwmapi.h>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <vector>
+
+#pragma comment(lib, "dwmapi.lib")
 
 static const char* kSpikeHLSL = R"(
 cbuffer P : register(b0) { float2 res; float2 center; float radius; float mag; float ring; float pad; };
@@ -125,9 +128,10 @@ static std::vector<std::unique_ptr<Overlay>> buildOverlays(HINSTANCE hinst) {
 }
 
 int wmain(int argc, wchar_t** argv) {
-  double runSeconds = 0; bool useDirty = true, useMeter = true;
+  double runSeconds = 0; bool useDirty = true, useMeter = true; float mag = 1.0f;
   for (int i = 1; i < argc; i++) {
     if (!wcscmp(argv[i], L"--seconds") && i + 1 < argc) runSeconds = _wtof(argv[++i]);
+    else if (!wcscmp(argv[i], L"--mag") && i + 1 < argc) mag = (float)_wtof(argv[++i]);
     else if (!wcscmp(argv[i], L"--full")) useDirty = false;
     else if (!wcscmp(argv[i], L"--nometer")) useMeter = false;
   }
@@ -142,7 +146,16 @@ int wmain(int argc, wchar_t** argv) {
   if (overlays.empty()) { printf("no overlays\n"); return 1; }
   std::unique_ptr<Meter> meter;
   if (useMeter) { meter = std::make_unique<Meter>(); if (!meter->init(*overlays[0], hinst)) meter.reset(); }
-  printf("dirty rects %s, meter %s. Ctrl+Alt+Q quits.\n\n", useDirty ? "ON" : "OFF", meter ? "ON" : "OFF");
+  // Refresh vs compose rate: a DRR panel can scan at 165 Hz while DWM composes at 60.
+  DWM_TIMING_INFO ti{}; ti.cbSize = sizeof(ti);
+  double refreshHz = 60;
+  if (SUCCEEDED(DwmGetCompositionTimingInfo(nullptr, &ti)) && ti.rateRefresh.uiDenominator) {
+    refreshHz = (double)ti.rateRefresh.uiNumerator / ti.rateRefresh.uiDenominator;
+    printf("DWM refresh %.1f Hz, compose %.1f Hz\n", refreshHz,
+           ti.rateCompose.uiDenominator ? (double)ti.rateCompose.uiNumerator / ti.rateCompose.uiDenominator : 0.0);
+  }
+  const UINT frameMs = (UINT)max(1.0, floor(1000.0 / refreshHz));
+  printf("dirty rects %s, meter %s, mag %.2f. Ctrl+Alt+Q quits.\n\n", useDirty ? "ON" : "OFF", meter ? "ON" : "OFF", mag);
 
   const double tStart = seconds();
   double tStat = tStart;
@@ -167,15 +180,17 @@ int wmain(int argc, wchar_t** argv) {
       memset(havePrev, 0, sizeof(havePrev));
     }
 
-    // The waitable only signals after a present; with no capture nothing is presented, so
-    // poll briefly instead of eating the full timeout.
+    // Throttle to one queued frame, then block until the desktop changes - for at most one
+    // refresh, so animation keeps running on a static desktop. Presenting right after the
+    // frame lands (instead of at the next wake) is what gets the lens to one frame behind.
     WaitForSingleObject(overlays[0]->waitable(), overlays[0]->captureLive() ? 50 : 5);
+    if (overlays[0]->acquire(frameMs)) newFrames++;
     const double now = seconds(), t = now - tStart;
     double t0 = now;
 
     for (size_t i = 0; i < overlays.size() && i < 8; i++) {
       Overlay& o = *overlays[i];
-      if (o.acquire()) newFrames++;
+      if (i > 0 && o.acquire()) newFrames++;
       if (o.takeNeedsBlank()) { o.presentBlank(); havePrev[i] = false; }
       if (!o.haveFrame()) continue;
 
@@ -186,7 +201,7 @@ int wmain(int argc, wchar_t** argv) {
       p.radius = 0.22f * H;
       p.center[0] = W * (0.5f + 0.28f * (float)sin(t * 0.21));
       p.center[1] = H * (0.42f + 0.18f * (float)sin(t * 0.17 + 1.3));
-      p.mag = 1.25f; p.ring = 5.f;
+      p.mag = mag; p.ring = 5.f;
 
       RECT cur{ (LONG)floor(p.center[0] - p.radius) - 1, (LONG)floor(p.center[1] - p.radius) - 1,
                 (LONG)ceil (p.center[0] + p.radius) + 1, (LONG)ceil (p.center[1] + p.radius) + 1 };

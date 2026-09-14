@@ -35,9 +35,10 @@ public:
 
   bool init(const char* hlsl, std::wstring* err);
 
-  // Pull the newest desktop frame if there is one. Returns true when a new frame landed.
-  // Duplication loss (sleep, lock screen, mode change) blanks and retries on its own.
-  bool acquire();
+  // Pull the newest desktop frame, waiting up to `timeoutMs` for one. Returns true when a
+  // new frame landed. Duplication loss (sleep, lock screen, mode change) blanks and
+  // retries on its own.
+  bool acquire(UINT timeoutMs = 0);
   // True until a fresh frame arrives after (re)starting duplication: never lens a stale one.
   bool haveFrame() const { return haveFrame_; }
   bool captureLive() const { return dupl_ != nullptr; }

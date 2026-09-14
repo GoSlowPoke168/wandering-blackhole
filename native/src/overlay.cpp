@@ -141,13 +141,13 @@ void Overlay::loseDuplication() {
   needBlank_ = true;
 }
 
-bool Overlay::acquire() {
+bool Overlay::acquire(UINT timeoutMs) {
   if (!dupl_) {
-    if (GetTickCount64() - lastRetry_ < 500) return false;
+    if (GetTickCount64() - lastRetry_ < 500) { Sleep(timeoutMs); return false; }
     if (!startDuplication()) return false;
   }
   DXGI_OUTDUPL_FRAME_INFO fi{}; ComPtr<IDXGIResource> res;
-  HRESULT hr = dupl_->AcquireNextFrame(0, &fi, &res);
+  HRESULT hr = dupl_->AcquireNextFrame(timeoutMs, &fi, &res);
   if (hr == DXGI_ERROR_WAIT_TIMEOUT) return false;
   if (FAILED(hr)) { loseDuplication(); return false; }
   bool fresh = false;
