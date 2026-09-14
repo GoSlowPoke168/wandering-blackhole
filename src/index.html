@@ -148,6 +148,16 @@ function stopCapture() {
   slog('capture stopped');
 }
 
+// Every definitive sign the stream is dead lands here: blank first so a dead stream
+// never lenses a stale desktop, then come back once the display is awake again.
+let restartTimer = null;
+function restartCapture() {
+  stopCapture();
+  clearTimeout(restartTimer);
+  restartTimer = setTimeout(() => { if (!S.hidden) startCapture(); }, 500);
+}
+ipcRenderer.on('restart-capture', () => { if (!S.hidden) restartCapture(); });
+
 async function startCapture() {
   const s = await setupReady;
   if (stream) return;
@@ -158,12 +168,20 @@ async function startCapture() {
   const capW0 = Math.round(s.display.width  * s.display.scale);
   const capH0 = Math.round(s.display.height * s.display.scale);
   slog(`requesting capture at ${capW0}x${capH0} (display ${s.displayId}), canvas ${W}x${H}`);
-  const st = await navigator.mediaDevices.getDisplayMedia({
-    video: { frameRate: 60, width: { ideal: capW0 }, height: { ideal: capH0 } }, audio: false });
+  let st;
+  try {
+    st = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: 60, width: { ideal: capW0 }, height: { ideal: capH0 } }, audio: false });
+  } catch (e) {
+    slog('capture request failed: ' + e.message);
+    if (gen === generation) restartCapture();
+    return;
+  }
   if (gen !== generation) { for (const t of st.getTracks()) t.stop(); return; }   // hidden again meanwhile
   stream = st;
   const track = st.getVideoTracks()[0];
   slog('capture started: ' + track.label);
+  track.onended = () => { slog('capture track ended'); if (gen === generation) restartCapture(); };
 
   if (typeof MediaStreamTrackProcessor !== 'undefined') {
     // Newest frame always wins. Draining a backlog in order would mean shading
@@ -173,8 +191,12 @@ async function startCapture() {
       const r = reader;
       for (;;) {
         let out;
-        try { out = await r.read(); } catch (e) { return; }
-        if (out.done || r !== reader) { if (out.value) out.value.close(); return; }
+        try { out = await r.read(); } catch (e) { if (gen === generation) restartCapture(); return; }
+        if (out.done || r !== reader) {
+          if (out.value) out.value.close();
+          if (out.done && gen === generation) restartCapture();
+          return;
+        }
         if (latest) { latest.close(); dropped++; }
         latest = out.value;
       }

@@ -363,6 +363,14 @@ app.whenReady().then(() => {
   screen.on('display-removed', scheduleRebuild);
   screen.on('display-metrics-changed', scheduleRebuild);
 
+  // Sleep and the lock screen can kill the capture stream without ending the track, and
+  // from inside the renderer that looks identical to a static desktop - so say so outright.
+  const restartCapture = () => {
+    for (const { win } of overlays.values()) if (!win.isDestroyed()) win.webContents.send('restart-capture');
+  };
+  powerMonitor.on('resume', restartCapture);
+  powerMonitor.on('unlock-screen', restartCapture);
+
   tray = new Tray(nativeImage.createFromBuffer(trayIcon(32, 1)));
   refreshTray();
 
@@ -429,6 +437,8 @@ app.whenReady().then(() => {
     setTimeout(() => { setHidden(true);  }, at);
     setTimeout(() => { setHidden(false); }, at * 2);
   }
+  // Test hook: force the resume/unlock restart path without sleeping the machine.
+  if (process.env.RESTART_AT) setTimeout(restartCapture, parseFloat(process.env.RESTART_AT) * 1000);
 
   if (process.env.SMOKE) setTimeout(() => app.quit(), parseFloat(process.env.SMOKE) * 1000);
   ipcMain.on('renderer-fatal', (_e, msg) => { console.error('renderer fatal: ' + msg); app.quit(); });
