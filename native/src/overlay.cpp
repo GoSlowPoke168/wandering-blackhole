@@ -1,11 +1,9 @@
 #include "overlay.h"
-#include <d3dcompiler.h>
 #include <cstdio>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "dcomp.lib")
-#pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
 
@@ -17,6 +15,7 @@ Overlay::Overlay(ComPtr<IDXGIAdapter1> adapter, ComPtr<IDXGIOutput1> output, HIN
 
 Overlay::~Overlay() {
   loseDuplication();
+  hud_.reset();
   if (hwnd_) DestroyWindow(hwnd_);
 }
 
@@ -29,7 +28,7 @@ LRESULT CALLBACK Overlay::wndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
   return DefWindowProcW(h, m, w, l);
 }
 
-bool Overlay::init(const char* hlsl, std::wstring* err) {
+bool Overlay::init(const std::wstring& hlslPath, std::wstring* err) {
   auto fail = [&](const wchar_t* what, HRESULT hr) {
     wchar_t b[256]; swprintf(b, 256, L"%s failed: 0x%08lX", what, (unsigned long)hr);
     *err = b; return false;
@@ -37,7 +36,8 @@ bool Overlay::init(const char* hlsl, std::wstring* err) {
   HRESULT hr;
 
   DXGI_OUTPUT_DESC od{}; output_->GetDesc(&od);
-  rect_ = od.DesktopCoordinates; name_ = od.DeviceName;
+  DXGI_ADAPTER_DESC1 ad{}; adapter_->GetDesc1(&ad);
+  rect_ = od.DesktopCoordinates; name_ = od.DeviceName; luid_ = ad.AdapterLuid;
   const int w = width(), h = height();
   if (FAILED(hr = adapter_->GetParent(IID_PPV_ARGS(&factory_)))) return fail(L"adapter GetParent", hr);
 
@@ -63,6 +63,7 @@ bool Overlay::init(const char* hlsl, std::wstring* err) {
   if (!hwnd_) return fail(L"CreateWindowEx", HRESULT_FROM_WIN32(GetLastError()));
   SetLayeredWindowAttributes(hwnd_, 0, 255, LWA_ALPHA);   // a layered window is hidden until told otherwise
   affinityOk_ = SetWindowDisplayAffinity(hwnd_, WDA_EXCLUDEFROMCAPTURE) != 0;
+  scale_ = GetDpiForWindow(hwnd_) / 96.f;
 
   // ---- composition swapchain, 1 frame of latency ----
   ComPtr<IDXGIDevice> dxgiDev; dev_.As(&dxgiDev);
@@ -90,28 +91,22 @@ bool Overlay::init(const char* hlsl, std::wstring* err) {
   if (FAILED(hr = swap_->GetBuffer(0, IID_PPV_ARGS(&back)))) return fail(L"GetBuffer", hr);
   if (FAILED(hr = dev_->CreateRenderTargetView(back.Get(), nullptr, &rtv_))) return fail(L"CreateRenderTargetView", hr);
 
-  // ---- pipeline ----
-  ComPtr<ID3DBlob> vsb, psb, e;
-  if (FAILED(D3DCompile(hlsl, strlen(hlsl), nullptr, nullptr, nullptr, "VS", "vs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &vsb, &e)) ||
-      FAILED(D3DCompile(hlsl, strlen(hlsl), nullptr, nullptr, nullptr, "PS", "ps_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &psb, &e))) {
-    printf("shader compile failed:\n%s\n", e ? (const char*)e->GetBufferPointer() : "?");
-    return fail(L"D3DCompile", E_FAIL);
+  std::string rerr;
+  if (!renderer_.init(dev_.Get(), hlslPath, &rerr)) {
+    *err = L"shader: " + std::wstring(rerr.begin(), rerr.end()); return false;
   }
-  dev_->CreateVertexShader(vsb->GetBufferPointer(), vsb->GetBufferSize(), nullptr, &vs_);
-  dev_->CreatePixelShader(psb->GetBufferPointer(), psb->GetBufferSize(), nullptr, &ps_);
-  D3D11_SAMPLER_DESC sd{}; sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-  sd.AddressU = sd.AddressV = sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-  dev_->CreateSamplerState(&sd, &sampler_);
-  D3D11_RASTERIZER_DESC rd{}; rd.FillMode = D3D11_FILL_SOLID; rd.CullMode = D3D11_CULL_NONE;
-  rd.ScissorEnable = TRUE; rd.DepthClipEnable = TRUE;
-  dev_->CreateRasterizerState(&rd, &raster_);
-  D3D11_BUFFER_DESC bd{}; bd.ByteWidth = sizeof(LensParams); bd.Usage = D3D11_USAGE_DEFAULT;
-  bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-  dev_->CreateBuffer(&bd, nullptr, &cbuf_);
 
   ShowWindow(hwnd_, SW_SHOWNOACTIVATE);
   startDuplication();          // may legitimately fail right now (secure desktop); acquire() retries
   return true;
+}
+
+Hud* Overlay::hud() {
+  if (!hud_) {
+    auto h = std::make_unique<Hud>(); std::string err;
+    if (h->init(dev_.Get(), swap_.Get(), scale_, &err)) hud_ = std::move(h);
+  }
+  return hud_.get();
 }
 
 bool Overlay::startDuplication() {
@@ -141,52 +136,78 @@ void Overlay::loseDuplication() {
   needBlank_ = true;
 }
 
-bool Overlay::acquire(UINT timeoutMs) {
+void Overlay::stopCapture() { loseDuplication(); lastRetry_ = GetTickCount64(); }
+
+bool Overlay::isEcho(const RECT& d) const {
+  for (const RECT& p : presented_) {
+    if (p.right <= p.left) continue;
+    if (d.left >= p.left - 2 && d.top >= p.top - 2 && d.right <= p.right + 2 && d.bottom <= p.bottom + 2) return true;
+  }
+  return false;
+}
+
+Overlay::Frame Overlay::acquire(UINT timeoutMs) {
   if (!dupl_) {
-    if (GetTickCount64() - lastRetry_ < 500) { Sleep(timeoutMs); return false; }
-    if (!startDuplication()) return false;
+    if (GetTickCount64() - lastRetry_ < 500) { Sleep(timeoutMs); return NoFrame; }
+    if (!startDuplication()) return NoFrame;
   }
   DXGI_OUTDUPL_FRAME_INFO fi{}; ComPtr<IDXGIResource> res;
   HRESULT hr = dupl_->AcquireNextFrame(timeoutMs, &fi, &res);
-  if (hr == DXGI_ERROR_WAIT_TIMEOUT) return false;
-  if (FAILED(hr)) { loseDuplication(); return false; }
-  bool fresh = false;
+  if (hr == DXGI_ERROR_WAIT_TIMEOUT) return NoFrame;
+  if (FAILED(hr)) { loseDuplication(); return NoFrame; }
+  Frame kind = NoFrame;
   // LastPresentTime == 0 means only the cursor moved; the image itself is unchanged.
   if (fi.LastPresentTime.QuadPart != 0) {
     ComPtr<ID3D11Texture2D> t;
-    if (SUCCEEDED(res.As(&t))) { ctx_->CopyResource(cap_.Get(), t.Get()); haveFrame_ = true; fresh = true; }
+    if (SUCCEEDED(res.As(&t))) {
+      ctx_->CopyResource(cap_.Get(), t.Get());
+      haveFrame_ = true;
+      kind = Real;
+      UINT moveBytes = 0, dirtyBytes = 0; RECT first{}; bool echo = false;
+      if (fi.TotalMetadataBufferSize) {
+        meta_.resize(fi.TotalMetadataBufferSize);
+        echo = SUCCEEDED(dupl_->GetFrameMoveRects((UINT)meta_.size(), (DXGI_OUTDUPL_MOVE_RECT*)meta_.data(), &moveBytes)) && moveBytes == 0;
+        if (SUCCEEDED(dupl_->GetFrameDirtyRects((UINT)meta_.size(), (RECT*)meta_.data(), &dirtyBytes))) {
+          const RECT* rects = (const RECT*)meta_.data();
+          if (dirtyBytes) first = rects[0];
+          for (UINT i = 0; i < dirtyBytes / sizeof(RECT) && echo; i++) echo = isEcho(rects[i]);
+        } else echo = false;
+        if (echo) kind = Echo;
+      }
+      if (debug_) {
+        wchar_t b[256];
+        const RECT& lp = presented_[(presentedIdx_ + 2) % 3];
+        swprintf(b, 256, L"frame: meta %u B, moves %u, dirty %u, first (%ld,%ld)-(%ld,%ld), presented (%ld,%ld)-(%ld,%ld), acc %u -> %s",
+                 fi.TotalMetadataBufferSize, moveBytes / (UINT)sizeof(DXGI_OUTDUPL_MOVE_RECT), dirtyBytes / (UINT)sizeof(RECT),
+                 first.left, first.top, first.right, first.bottom, lp.left, lp.top, lp.right, lp.bottom,
+                 fi.AccumulatedFrames, kind == Echo ? L"echo" : L"real");
+        lastMeta_ = b;
+      }
+    }
   }
   dupl_->ReleaseFrame();
-  return fresh;
+  return kind;
 }
 
-void Overlay::draw(const LensParams& p, const RECT* dirty) {
+void Overlay::draw(const Uniforms& u, const RECT* scissor, const RECT& dirty, bool withHud) {
   const int w = width(), h = height();
   const float clear[4] = { 0, 0, 0, 0 };
-  D3D11_RECT r = dirty ? D3D11_RECT{ dirty->left, dirty->top, dirty->right, dirty->bottom }
-                       : D3D11_RECT{ 0, 0, w, h };
+  D3D11_RECT d{ dirty.left, dirty.top, dirty.right, dirty.bottom };
   ctx_->OMSetRenderTargets(1, rtv_.GetAddressOf(), nullptr);
-  D3D11_VIEWPORT vp{ 0, 0, (float)w, (float)h, 0, 1 };
-  ctx_->RSSetViewports(1, &vp);
-  if (dirty) ctx_->ClearView(rtv_.Get(), clear, &r, 1);
-  else       ctx_->ClearRenderTargetView(rtv_.Get(), clear);
-  ctx_->RSSetScissorRects(1, &r);
-  ctx_->RSSetState(raster_.Get());
-  ctx_->UpdateSubresource(cbuf_.Get(), 0, nullptr, &p, 0, 0);
-  ctx_->VSSetShader(vs_.Get(), nullptr, 0);
-  ctx_->PSSetShader(ps_.Get(), nullptr, 0);
-  ctx_->PSSetConstantBuffers(0, 1, cbuf_.GetAddressOf());
-  ctx_->PSSetShaderResources(0, 1, capSrv_.GetAddressOf());
-  ctx_->PSSetSamplers(0, 1, sampler_.GetAddressOf());
-  ctx_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-  ctx_->Draw(3, 0);
+  ctx_->ClearView(rtv_.Get(), clear, &d, 1);
+  if (scissor) {
+    D3D11_RECT s{ scissor->left, scissor->top, scissor->right, scissor->bottom };
+    renderer_.draw(ctx_.Get(), rtv_.Get(), capSrv_.Get(), u, w, h, &s);
+  }
+  if (withHud && hud()) hud_->draw();
 
   // The first present of a flip chain must be a full one; after that DWM only touches
   // the dirty rect, which is what keeps a small hole cheap on a big screen.
   DXGI_PRESENT_PARAMETERS pp{};
-  RECT dr = dirty ? *dirty : RECT{ 0, 0, w, h };
-  if (dirty && !firstPresent_) { pp.DirtyRectsCount = 1; pp.pDirtyRects = &dr; }
+  RECT dr = dirty;
+  if (!firstPresent_) { pp.DirtyRectsCount = 1; pp.pDirtyRects = &dr; }
   swap_->Present1(1, 0, &pp);
+  notePresented(firstPresent_ ? RECT{ 0, 0, w, h } : dirty);
   firstPresent_ = false;
 }
 
@@ -196,26 +217,6 @@ void Overlay::presentBlank() {
   ctx_->ClearRenderTargetView(rtv_.Get(), clear);
   DXGI_PRESENT_PARAMETERS pp{};
   swap_->Present1(1, 0, &pp);
+  notePresented(RECT{ 0, 0, width(), height() });
   firstPresent_ = false;
-}
-
-bool Overlay::readCapture(int x, int y, int w, int h, unsigned char* out) {
-  if (!cap_ || x < 0 || y < 0 || x + w > capW_ || y + h > capH_) return false;
-  if (!staging_ || stagingW_ != w || stagingH_ != h) {
-    D3D11_TEXTURE2D_DESC td{};
-    td.Width = w; td.Height = h; td.MipLevels = 1; td.ArraySize = 1;
-    td.Format = DXGI_FORMAT_B8G8R8A8_UNORM; td.SampleDesc.Count = 1;
-    td.Usage = D3D11_USAGE_STAGING; td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-    staging_.Reset();
-    if (FAILED(dev_->CreateTexture2D(&td, nullptr, &staging_))) return false;
-    stagingW_ = w; stagingH_ = h;
-  }
-  D3D11_BOX box{ (UINT)x, (UINT)y, 0, (UINT)(x + w), (UINT)(y + h), 1 };
-  ctx_->CopySubresourceRegion(staging_.Get(), 0, 0, 0, 0, cap_.Get(), 0, &box);
-  D3D11_MAPPED_SUBRESOURCE ms{};
-  if (FAILED(ctx_->Map(staging_.Get(), 0, D3D11_MAP_READ, 0, &ms))) return false;
-  for (int row = 0; row < h; row++)
-    memcpy(out + row * w * 4, (const unsigned char*)ms.pData + row * ms.RowPitch, w * 4);
-  ctx_->Unmap(staging_.Get(), 0);
-  return true;
 }

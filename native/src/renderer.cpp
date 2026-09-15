@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "presets.gen.h"
 #include <d3dcompiler.h>
 #include <fstream>
 #include <sstream>
@@ -10,14 +11,6 @@ const char* const kLookNames[LOOK_COUNT] = {
   "DISK_BEAM", "DISK_GAIN", "DISK_CONTRAST", "DISK_WIND", "DISK_SPEED", "EXPOSURE", "STAR_GAIN",
   "HOLE_RADIUS", "LENS_DEPTH", "WORK_AREA", "DILATION_MIN", "TOKEN_AREA_MIN", "TOKEN_AREA_MAX",
   "TOKEN_EASE", "TOKEN_REACH", "TOKEN_CALM", "TOKEN_RUSH", "TOKEN_HOME_X", "TOKEN_HOME_Y",
-};
-
-// Upstream's const values (shader-patch.js `build().defaults`). Regenerate if the GLSL changes.
-static const float kLookDefaults[LOOK_COUNT] = {
-  5500.f, 1.5f, 0.35f, 1.8f, 8.f, 0.9f, 0.6f,
-  2.5f, 2.2f, 1.6f, 7.f, 5.f, 1.4f, 0.f,
-  0.02f, 13.f, 0.33f, 0.2f, 0.01f, 0.5f,
-  1.f, 1.f, 0.04f, 1.1f, 0.96f, 0.04f,
 };
 
 void defaultUniforms(Uniforms& u) {

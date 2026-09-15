@@ -118,6 +118,22 @@ int runStill(const wchar_t* pngIn, const wchar_t* caseFile, const wchar_t* rawOu
     fe->WritePixels(h, w * 4, (UINT)bgra.size(), bgra.data());
     fe->Commit(); enc->Commit();
   }
-  printf("still: %ux%u -> %ls\n", w, h, rawOut);
+  // How far from the centre does the shader leave anything visible, in shadow radii? This
+  // calibrates the scissor rect the live renderer uses (kLensReach in app.cpp).
+  const float aspect = (float)w / h;
+  const float g = powf(u.TOKEN_LEVEL < 0 ? 0 : (u.TOKEN_LEVEL > 1 ? 1 : u.TOKEN_LEVEL), u.look[TOKEN_EASE]);
+  const float rhMin = sqrtf(u.look[TOKEN_AREA_MIN] * aspect / 3.1415927f), rhMax = sqrtf(u.look[TOKEN_AREA_MAX] * aspect / 3.1415927f);
+  const float rhPx = (rhMin + (rhMax - rhMin) * g) * (u.look[HOLE_RADIUS] / 0.08f) * h;
+  const float cx = u.uCenter[0] * w, cy = u.uCenter[1] * h;
+  float maxD = 0; UINT x0 = w, y0 = h, x1 = 0, y1 = 0;
+  for (UINT y = 0; y < h; y++) for (UINT x = 0; x < w; x++) if (rgba[((size_t)y * w + x) * 4 + 3]) {
+    const float d = hypotf(x + 0.5f - cx, y + 0.5f - cy); if (d > maxD) maxD = d;
+    x0 = x < x0 ? x : x0; y0 = y < y0 ? y : y0; x1 = x > x1 ? x : x1; y1 = y > y1 ? y : y1;
+  }
+  char line[256];
+  snprintf(line, sizeof line, "rh %.1f px, visible out to %.1f px = %.1f rh, bbox (%u,%u)-(%u,%u)",
+           rhPx, maxD, rhPx > 0 ? maxD / rhPx : 0.f, x0, y0, x1, y1);
+  printf("still: %ux%u -> %ls | %s\n", w, h, rawOut, line);
+  std::ofstream(std::wstring(rawOut) + L".txt") << line << "\n";   // a GUI exe cannot pipe stdout
   return 0;
 }

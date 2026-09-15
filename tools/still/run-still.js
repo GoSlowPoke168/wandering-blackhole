@@ -14,7 +14,7 @@ const ROOT = path.join(__dirname, '..', '..');
 const { build, presets } = require(path.join(ROOT, 'src', 'shader-patch.js'));
 const OUT = path.join(__dirname, 'out');
 const IMG = path.join(__dirname, 'desktop.png');
-const EXE = path.join(ROOT, 'native', 'bhp-spike.exe');
+const EXE = path.join(ROOT, 'native', 'BlackHolePomodoro.exe');
 const MEAN_MAX = 1.0, BAD_PCT_MAX = 0.5, BAD_THRESHOLD = 8;
 
 function cases() {
@@ -69,7 +69,8 @@ app.whenReady().then(async () => {
     const ok = r.mean <= MEAN_MAX && r.badPct <= BAD_PCT_MAX;
     if (!ok) failed++;
     rows.push({ name: c.name, mean: r.mean, max: r.max, badPct: r.badPct, ok });
-    console.log(`${ok ? 'PASS' : 'FAIL'}  ${c.name.padEnd(36)} mean ${r.mean.toFixed(3)}  max ${r.max}  >${BAD_THRESHOLD}: ${r.badPct.toFixed(3)}%`);
+    let reach = ''; try { reach = fs.readFileSync(nativeRaw + '.txt', 'utf8').trim(); } catch (e) {}
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${c.name.padEnd(36)} mean ${r.mean.toFixed(3)}  max ${r.max}  >${BAD_THRESHOLD}: ${r.badPct.toFixed(3)}%   ${reach}`);
   }
   fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify(rows, null, 2));
   console.log(`\n${rows.length - failed}/${run.length} cases pass (mean <= ${MEAN_MAX}, >${BAD_THRESHOLD} <= ${BAD_PCT_MAX}%)`);
