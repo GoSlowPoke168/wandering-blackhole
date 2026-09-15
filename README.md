@@ -157,6 +157,11 @@ a hole at mid-height on a 1600-tall desktop lands 74% of the way down a 1080-tal
 only the taskbar strip stays clear (~0.05 of each screen here), and warping survives the
 whole roam on both.
 
+The hole is sized as a fraction of each screen's **area**, not in pixels, so it keeps its
+physical size across screens of different resolution: measured across this pair, 81 px on a
+191 PPI laptop panel and 57 px on a 135 PPI external — 10.8 mm and 10.7 mm on the glass. It
+would only differ on screens of genuinely different physical area.
+
 Whether the lens reaches a given window is decided by its **clamped scissor rect**, never by
 a margin guess. Those two disagreed at first: `shouldShade()` allowed 0.35 of the window
 width while a small hole's lens only reached 0.18, so a hole sitting on the *other* monitor
@@ -186,10 +191,6 @@ outputs), level 0.15, m87\* donut, static desktop, Balanced power mode:
 - **Exclusive-fullscreen apps** (some games) bypass DWM, so the overlay will not draw over
   them. Borderless fullscreen is fine.
 - **HDR / FP16 desktops** are untested; the swapchain and capture are BGRA8.
-- **The hole is sized per screen, not per desktop.** Its size is a fraction of the screen's
-  *area*, so on monitors with different pixel counts it is physically different — 81 px vs
-  57 px shadow radius across the pair here — and the two halves do not line up while it
-  straddles the seam.
 - **EDR / anti-cheat.** A topmost, click-through, capture-excluded window that continuously
   reads the desktop looks exactly like a cheat overlay. Fine personally; expect friction on
   a managed machine.
