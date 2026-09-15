@@ -565,6 +565,7 @@ static RECT lensRect(UV winUV, float level, int w, int h, const float* look) {
   return { (LONG)std::max(0.f, std::floor(cx - R)), (LONG)std::max(0.f, std::floor(cy - R)),
            (LONG)std::min((float)w, std::ceil(cx + R)), (LONG)std::min((float)h, std::ceil(cy + R)) };
 }
+static bool isEmpty(const RECT& r) { return r.right <= r.left || r.bottom <= r.top; }
 static RECT unite(const RECT& a, const RECT& b) {
   if (a.right <= a.left || a.bottom <= a.top) return b;
   if (b.right <= b.left || b.bottom <= b.top) return a;
@@ -594,6 +595,8 @@ void App::renderLoop() {
     Snapshot s;
     { std::lock_guard<std::mutex> sl(snapMu_); s = snap_; snap_.restartCapture = false; }
     if (s.restartCapture) { for (auto& o : overlays_) o->restartCapture(); smoke(L"capture restart requested"); }
+    renderStats(now(), tStat, frames, newFrames, echoes, iters, skipped, cpuMs, waitMs, acqMs,
+                dirtyPct, shownLevel, shownCenter, overlays_[0]->captureLive());
 
     // Hidden: no capture, no presents, nothing on the vsync clock - it must be able to
     // sit like this for hours.
@@ -646,12 +649,17 @@ void App::renderLoop() {
     const bool animDue = t >= nextAnim && animating;
     pendingDraw = pendingDraw || real || s.hud != hudWasOn;
     if (!pendingDraw && !animDue) continue;
-    // Previous present not consumed yet: keep the change pending rather than queue behind it.
-    if (WaitForSingleObject(overlays_[0]->waitable(), 0) != WAIT_OBJECT_0) { skipped++; continue; }
+    // Previous present not consumed yet: keep the change pending rather than queue behind
+    // it. The slot each overlay takes here is remembered until it presents, so skipping
+    // the frame cannot leak it.
+    bool ready = true;
+    for (auto& o : overlays_) if (!o->acquireSlot(0)) ready = false;
+    if (!ready) { skipped++; pendingDraw = true; continue; }
     pendingDraw = false;
     if (animDue) nextAnim = t + 1.0 / kAnimHz;
     last = t;
     const double t0 = t;
+    bool drew = false;
     // Time-based smoothing tuned to the Electron build's per-frame factors at 60 Hz.
     const float kL = 1 - (float)std::exp(-dt / 0.13), kC = 1 - (float)std::exp(-dt / 0.20);
     shownLevel += (s.level - shownLevel) * kL;
@@ -663,15 +671,9 @@ void App::renderLoop() {
     for (size_t i = 0; i < overlays_.size() && i < 8; i++) {
       Overlay& o = *overlays_[i];
       if (o.takeNeedsBlank()) { o.presentBlank(); wasDrawn[i] = false; }
-      if (!o.haveFrame()) continue;
+      if (!o.haveFrame()) { drew = true; continue; }   // not our slot to hold open
       const int w = o.width(), h = o.height();
       const UV winUV = toWindowUV(shownCenter, o.rect(), s.virt);
-      const bool shading = shownLevel > 0.002f && shouldShade(winUV, shownLevel);
-      const bool hudOn = s.hud && i == 0;
-      if (!shading && !hudOn) {
-        if (wasDrawn[i]) { o.presentBlank(); wasDrawn[i] = false; }
-        continue;
-      }
       Uniforms u; defaultUniforms(u);
       for (int k = 0; k < LOOK_COUNT; k++) u.look[k] = s.look[k];
       u.iResolution[0] = (float)w; u.iResolution[1] = (float)h;
@@ -679,7 +681,19 @@ void App::renderLoop() {
       u.uCenter[0] = winUV.x; u.uCenter[1] = winUV.y; u.uCenterPin = 1;
       u.uDriftTime = (float)driftNow;
 
-      RECT cur = shading ? lensRect(winUV, shownLevel, w, h, u.look) : RECT{ 0, 0, 0, 0 };
+      // Whether the lens reaches this window is decided by the clamped rect, never by a
+      // margin guess: on a multi-monitor desktop the hole can sit near enough to pass
+      // shouldShade() while its reach stops short of this screen, and the two disagreeing
+      // is what produced an empty present rect.
+      RECT cur{ 0, 0, 0, 0 };
+      if (shownLevel > 0.002f && shouldShade(winUV, shownLevel)) cur = lensRect(winUV, shownLevel, w, h, u.look);
+      const bool shading = !isEmpty(cur);
+      const bool hudOn = s.hud && i == 0;
+      if (!shading && !hudOn) {
+        if (wasDrawn[i]) { o.presentBlank(); wasDrawn[i] = false; }
+        drew = true;
+        continue;
+      }
       RECT dirty = unite(cur, wasDrawn[i] ? prev[i] : RECT{ 0, 0, 0, 0 });
       if (hudOn) {
         if (Hud* hud = o.hud()) {
@@ -691,23 +705,36 @@ void App::renderLoop() {
         }
       } else if (hudWasOn && i == 0 && o.hud()) dirty = unite(dirty, o.hud()->rect());
       o.draw(u, shading ? &cur : nullptr, dirty, hudOn);
+      if (FAILED(o.lastPresentHr())) {
+        wchar_t b[200];
+        swprintf(b, 200, L"present failed 0x%08lX on %s: dirty (%ld,%ld)-(%ld,%ld), level %.4f, winUV %.3f,%.3f",
+                 (unsigned long)o.lastPresentHr(), o.name().c_str(), dirty.left, dirty.top, dirty.right, dirty.bottom,
+                 shownLevel, winUV.x, winUV.y);
+        smoke(b);
+      }
       prev[i] = unite(cur, hudOn && o.hud() ? o.hud()->rect() : RECT{ 0, 0, 0, 0 });
-      wasDrawn[i] = true;
+      wasDrawn[i] = true; drew = true;
       if (i == 0) dirtyPct = 100.f * (dirty.right - dirty.left) * (dirty.bottom - dirty.top) / ((float)w * h);
     }
     hudWasOn = s.hud;
-    cpuMs += (now() - t0) * 1000; frames++;
+    cpuMs += (now() - t0) * 1000; if (drew) frames++;
+  }
+}
 
+// Stats are emitted from the top of the loop, before any of the skip paths, so a loop that
+// is spinning without drawing still reports - silence then means the thread itself is gone.
+void App::renderStats(double t, double& tStat, int& frames, int& newFrames, int& echoes,
+                      int& iters, int& skipped, double& cpuMs, double& waitMs, double& acqMs,
+                      float dirtyPct, float shownLevel, UV shownCenter, bool captureLive) {
     if (t - tStat >= 1.0) {
       wchar_t line[200];
       swprintf(line, 200, L"fps %.1f | capture %.1f/s (%d echo) | render %.2f ms | dirty %.1f%% | level %.2f | uv %.2f,%.2f%s"
                L" | iters %d skipped %d wait %.1f ms acq %.1f ms",
                frames / (t - tStat), newFrames / (t - tStat), echoes, frames ? cpuMs / frames : 0.0, dirtyPct, shownLevel,
-               shownCenter.x, shownCenter.y, overlays_[0]->captureLive() ? L"" : L"  [capture lost]",
+               shownCenter.x, shownCenter.y, captureLive ? L"" : L"  [capture lost]",
                iters, skipped, iters ? waitMs / iters : 0.0, iters ? acqMs / iters : 0.0);
       smoke(line);
       { std::lock_guard<std::mutex> sl(statsMu_); renderStats_ = line; }
-      frames = newFrames = echoes = iters = skipped = 0; cpuMs = waitMs = acqMs = acqAsked = 0; tStat = t;
+      frames = newFrames = echoes = iters = skipped = 0; cpuMs = waitMs = acqMs = 0; tStat = t;
     }
-  }
 }

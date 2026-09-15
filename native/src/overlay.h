@@ -47,6 +47,13 @@ public:
   void setDebug(bool on) { debug_ = on; }
   const std::wstring& lastMeta() const { return lastMeta_; }   // debug: how the last frame was classified
 
+  // Take the swapchain's present slot, or report that a present is still in flight so the
+  // caller can skip a frame it could not show anyway. The slot is a semaphore: taking one
+  // and not presenting would leak it, and with a maximum frame latency of 1 a single leak
+  // wedges the swapchain permanently - so a slot taken here is remembered and reused.
+  bool acquireSlot(DWORD timeoutMs = 0);
+  HRESULT lastPresentHr() const { return lastPresentHr_; }
+
   // Clear `dirty`, run the shader inside `scissor` (skipped when null), draw the HUD if
   // asked, present `dirty`. All rects in window px.
   void draw(const Uniforms& u, const RECT* scissor, const RECT& dirty, bool withHud);
@@ -88,7 +95,8 @@ private:
   ComPtr<IDXGISwapChain2> swap_;
   ComPtr<ID3D11RenderTargetView> rtv_;
   HANDLE waitable_ = nullptr;
-  bool firstPresent_ = true;
+  bool firstPresent_ = true, slotHeld_ = false;
+  HRESULT lastPresentHr_ = S_OK;
 
   ComPtr<IDXGIOutputDuplication> dupl_;
   ComPtr<ID3D11Texture2D> cap_;

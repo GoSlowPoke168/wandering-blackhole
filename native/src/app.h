@@ -61,6 +61,9 @@ private:
   void quit();
   // ---- render thread ----
   void renderLoop();
+  void renderStats(double t, double& tStat, int& frames, int& newFrames, int& echoes,
+                   int& iters, int& skipped, double& cpuMs, double& waitMs, double& acqMs,
+                   float dirtyPct, float shownLevel, UV shownCenter, bool captureLive);
 
   HINSTANCE hinst_ = nullptr;
   HWND hwnd_ = nullptr;

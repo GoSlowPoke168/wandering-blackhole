@@ -189,7 +189,17 @@ Overlay::Frame Overlay::acquire(UINT timeoutMs) {
   return kind;
 }
 
+bool Overlay::acquireSlot(DWORD timeoutMs) {
+  if (slotHeld_ || !waitable_) return true;
+  if (WaitForSingleObject(waitable_, timeoutMs) != WAIT_OBJECT_0) return false;
+  slotHeld_ = true;
+  return true;
+}
+
 void Overlay::draw(const Uniforms& u, const RECT* scissor, const RECT& dirty, bool withHud) {
+  // Present1 rejects an empty dirty rect outright, and a rejected present never returns
+  // the frame-latency slot - so nothing to show means present nothing at all.
+  if (dirty.right <= dirty.left || dirty.bottom <= dirty.top) return;
   const int w = width(), h = height();
   const float clear[4] = { 0, 0, 0, 0 };
   D3D11_RECT d{ dirty.left, dirty.top, dirty.right, dirty.bottom };
@@ -206,7 +216,12 @@ void Overlay::draw(const Uniforms& u, const RECT* scissor, const RECT& dirty, bo
   DXGI_PRESENT_PARAMETERS pp{};
   RECT dr = dirty;
   if (!firstPresent_) { pp.DirtyRectsCount = 1; pp.pDirtyRects = &dr; }
-  swap_->Present1(1, 0, &pp);
+  acquireSlot(50);
+  lastPresentHr_ = swap_->Present1(1, 0, &pp);
+  // A rejected present queues no frame, so the slot we took is still ours: keep it rather
+  // than leak it (one leak wedges the swapchain for good), and retry as a full present.
+  if (FAILED(lastPresentHr_)) { firstPresent_ = true; return; }
+  slotHeld_ = false;
   notePresented(firstPresent_ ? RECT{ 0, 0, w, h } : dirty);
   firstPresent_ = false;
 }
@@ -216,7 +231,10 @@ void Overlay::presentBlank() {
   ctx_->OMSetRenderTargets(1, rtv_.GetAddressOf(), nullptr);
   ctx_->ClearRenderTargetView(rtv_.Get(), clear);
   DXGI_PRESENT_PARAMETERS pp{};
-  swap_->Present1(1, 0, &pp);
+  acquireSlot(50);
+  lastPresentHr_ = swap_->Present1(1, 0, &pp);
+  if (FAILED(lastPresentHr_)) { firstPresent_ = true; return; }
+  slotHeld_ = false;
   notePresented(RECT{ 0, 0, width(), height() });
   firstPresent_ = false;
 }

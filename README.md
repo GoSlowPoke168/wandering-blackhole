@@ -140,8 +140,14 @@ All displays are treated as **one continuous canvas**: the hole has a single pos
 "virtual uv" across the bounding box of every display, one overlay window and one
 duplication per output, and the host owns the position. State reaches the render thread
 as a snapshot carrying the drift *clock*, not the position, so the wander is evaluated per
-frame and never steps. Written against synthetic layouts; unverified on real multi-monitor
-hardware.
+frame and never steps.
+
+Whether the lens reaches a given window is decided by its **clamped scissor rect**, never by
+a margin guess. Those two disagreed at first: `shouldShade()` allowed 0.35 of the window
+width while a small hole's lens only reached 0.18, so a hole sitting on the *other* monitor
+produced an inverted rect, `Present1` rejected the empty dirty rect with
+`DXGI_ERROR_INVALID_CALL`, and the unreturned frame-latency slot wedged that swapchain for
+good. Verified across a full wander sweep over two screens at small size.
 
 ## Performance
 
