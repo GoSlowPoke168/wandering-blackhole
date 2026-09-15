@@ -8,4 +8,4 @@ call "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\v
 if errorlevel 1 ( echo Could not activate MSVC. & exit /b 1 )
 if not exist obj mkdir obj
 cl /nologo /EHsc /O2 /std:c++17 /W3 /DUNICODE /D_UNICODE /Fo.\obj\ ^
-   src\main.cpp src\overlay.cpp /Fe:bhp-spike.exe /link /SUBSYSTEM:CONSOLE
+   src\main.cpp src\overlay.cpp src\renderer.cpp src\still.cpp /Fe:bhp-spike.exe /link /SUBSYSTEM:CONSOLE

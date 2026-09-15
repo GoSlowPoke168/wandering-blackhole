@@ -127,7 +127,10 @@ static std::vector<std::unique_ptr<Overlay>> buildOverlays(HINSTANCE hinst) {
   return out;
 }
 
+int runStill(const wchar_t* pngIn, const wchar_t* caseFile, const wchar_t* rawOut, const wchar_t* pngOut);
+
 int wmain(int argc, wchar_t** argv) {
+  if (argc >= 5 && !wcscmp(argv[1], L"--still")) return runStill(argv[2], argv[3], argv[4], argc > 5 ? argv[5] : nullptr);
   double runSeconds = 0; bool useDirty = true, useMeter = true; float mag = 1.0f;
   for (int i = 1; i < argc; i++) {
     if (!wcscmp(argv[i], L"--seconds") && i + 1 < argc) runSeconds = _wtof(argv[++i]);

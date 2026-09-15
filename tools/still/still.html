@@ -1,0 +1,119 @@
+<meta charset="utf-8">
+<title>still</title>
+<canvas id=gl></canvas><canvas id=c2></canvas>
+<script>
+'use strict';
+// Renders one case through the patched GLSL over an image, then composites and diffs it
+// against the native render. Same GL setup as src/index.html, minus the capture.
+const { ipcRenderer } = require('electron');
+const path = require('path');
+const { build } = require(path.join(__dirname, '..', '..', 'src', 'shader-patch.js'));
+const BAD_THRESHOLD = 8;
+
+const canvas = document.getElementById('gl');
+const gl = canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, preserveDrawingBuffer: true });
+const patched = build();
+const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o);
+  if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, `#version 300 es
+void main(){ vec2 p = vec2((gl_VertexID<<1)&2, gl_VertexID&2); gl_Position = vec4(p*2.0-1.0,0,1); }`));
+gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, patched.source));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+const U = {};
+for (const n of ['iChannel0','iResolution','iTime','iDate','iCurrentCursorColor','iPreviousCursorColor',
+  'iTimeCursorChange','TOKEN_LEVEL','uDesktopXform','uDriftTime','uCenter','uCenterPin'].concat(patched.promoted))
+  U[n] = gl.getUniformLocation(prog, n);
+const tex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, tex);
+for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.LINEAR);
+for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
+
+const loadImage = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+
+function renderWebGL(img, u) {
+  const W = img.naturalWidth, H = img.naturalHeight;
+  canvas.width = W; canvas.height = H;
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  gl.viewport(0, 0, W, H); gl.disable(gl.BLEND);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.activeTexture(gl.TEXTURE0); gl.uniform1i(U.iChannel0, 0);
+  gl.uniform3f(U.iResolution, W, H, 1);
+  gl.uniform1f(U.iTime, u.iTime);
+  gl.uniform4f(U.iDate, 2026, 9, 14, u.iTime);
+  gl.uniform4f(U.iCurrentCursorColor, 0, 0, 0, 1);
+  gl.uniform4f(U.iPreviousCursorColor, 0, 0, 0, 1);
+  gl.uniform1f(U.iTimeCursorChange, 0);
+  gl.uniform1f(U.TOKEN_LEVEL, u.TOKEN_LEVEL);
+  gl.uniform4fv(U.uDesktopXform, u.uDesktopXform);
+  gl.uniform1f(U.uDriftTime, u.uDriftTime);
+  gl.uniform2f(U.uCenter, u.uCenter[0], u.uCenter[1]);
+  gl.uniform1f(U.uCenterPin, u.uCenterPin);
+  for (const n of patched.promoted) if (U[n]) gl.uniform1f(U[n], u[n]);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  const px = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  const flipped = new Uint8Array(W * H * 4);              // readPixels is bottom-up
+  for (let y = 0; y < H; y++) flipped.set(px.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+  return { W, H, rgba: flipped };
+}
+
+const c2 = document.getElementById('c2');
+function toPng(W, H, rgba) {
+  c2.width = W; c2.height = H;
+  const ctx = c2.getContext('2d');
+  ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, W * H * 4), W, H), 0, 0);
+  return c2.toDataURL('image/png');
+}
+function desktopPixels(img) {
+  c2.width = img.naturalWidth; c2.height = img.naturalHeight;
+  const ctx = c2.getContext('2d'); ctx.drawImage(img, 0, 0);
+  return ctx.getImageData(0, 0, c2.width, c2.height).data;
+}
+// Premultiplied "over": out = src + dst * (1 - a). ImageData would take the raws as straight
+// alpha, so composite by hand and hand it an opaque result.
+function composite(desk, over, W, H) {
+  const out = new Uint8ClampedArray(W * H * 4);
+  for (let i = 0; i < W * H * 4; i += 4) {
+    const a = over[i + 3] / 255;
+    out[i]     = over[i]     + desk[i]     * (1 - a);
+    out[i + 1] = over[i + 1] + desk[i + 1] * (1 - a);
+    out[i + 2] = over[i + 2] + desk[i + 2] * (1 - a);
+    out[i + 3] = 255;
+  }
+  return out;
+}
+function diff(a, b, W, H) {
+  let sum = 0, max = 0, bad = 0;
+  const heat = new Uint8ClampedArray(W * H * 4);
+  for (let p = 0; p < W * H; p++) {
+    let m = 0;
+    for (let c = 0; c < 4; c++) { const d = Math.abs(a[p * 4 + c] - b[p * 4 + c]); sum += d; if (d > m) m = d; }
+    if (m > max) max = m;
+    if (m > BAD_THRESHOLD) bad++;
+    const v = Math.min(255, m * 8);
+    heat[p * 4] = v; heat[p * 4 + 1] = m > BAD_THRESHOLD ? 0 : v; heat[p * 4 + 2] = m > BAD_THRESHOLD ? 0 : v; heat[p * 4 + 3] = 255;
+  }
+  return { mean: sum / (W * H * 4), max, badPct: 100 * bad / (W * H), heat };
+}
+
+ipcRenderer.on('still-render', async (_e, m) => {
+  try {
+    const img = await loadImage(m.image);
+    const g = renderWebGL(img, m.u);
+    if (m.nativeW !== g.W || m.nativeH !== g.H) throw new Error(`size mismatch: native ${m.nativeW}x${m.nativeH}, webgl ${g.W}x${g.H}`);
+    const native = new Uint8Array(m.nativeRgba.buffer, m.nativeRgba.byteOffset, m.nativeRgba.length);
+    const desk = desktopPixels(img);
+    const d = diff(g.rgba, native, g.W, g.H);
+    ipcRenderer.send('still-done', {
+      w: g.W, h: g.H, webglRgba: g.rgba, mean: d.mean, max: d.max, badPct: d.badPct,
+      webglComposite: toPng(g.W, g.H, composite(desk, g.rgba, g.W, g.H)),
+      nativeComposite: toPng(g.W, g.H, composite(desk, native, g.W, g.H)),
+      heat: toPng(g.W, g.H, d.heat),
+    });
+  } catch (e) { ipcRenderer.send('still-done', { error: e.stack || String(e) }); }
+});
+</script>

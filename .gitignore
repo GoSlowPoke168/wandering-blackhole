@@ -7,3 +7,4 @@ native/obj/
 native/*.exe
 native/*.pdb
 native/*.ilk
+tools/still/out/
