@@ -39,9 +39,13 @@ break before starting over.
 
 **Eye breaks** — the 20-20-20 rule. Every 20 minutes the hole swallows the screen for 20
 seconds so you actually look away. The whole cycle is a ramp, so the hole's size *is* how
-close the next break is: it starts at nothing, stays near nothing for most of the interval,
-climbs hard over the last few minutes to *Size before a break*, engulfs the screen, holds,
-then recedes gently back to nothing. The four phases join continuously — no jumps.
+close the next break is: it starts small, barely grows for most of the interval, climbs hard
+over the last few minutes to *Size before a break*, engulfs the screen, holds, then recedes
+gently back to small. The four phases join continuously — no jumps.
+
+It never shrinks to *nothing*: a hole that vanishes for minutes reads as the app having
+died, and switching into the mode would answer the keypress with an empty screen. The floor
+scales with *Size before a break*, so choosing **Hidden** still hides it completely.
 
 ### Tray
 

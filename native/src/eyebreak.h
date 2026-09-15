@@ -21,9 +21,12 @@ public:
 
   explicit EyeBreak(const EyeBreakOpts& o = {}) { set(o); }
   void set(const EyeBreakOpts& o) { opts_ = o; }
-  // Where the waiting ramp starts, and where a recede lands. Nothing: the break has just
-  // earned you a clear screen.
-  static constexpr float kSeed = 0.f;
+
+  // Where the waiting ramp starts and where a recede lands. Not nothing: a hole that
+  // vanishes for minutes reads as the app having died, and switching into eye-break mode
+  // would answer the keypress with an empty screen. Scaled to the chosen size, so picking
+  // "Hidden" still hides it.
+  static float seedFor(float peak) { return std::min(0.06f, std::max(0.f, peak) * 0.25f); }
 
   double phaseLengthSec() const {
     switch (phase) {
@@ -60,18 +63,19 @@ public:
   // and the recede lands back on the seed the next ramp starts from.
   float level(float peak) const {
     const double r = std::max(0.f, std::min(1.f, peak));
+    const double seed = seedFor((float)r);
     const double f = frac();
     switch (phase) {
-      // Near nothing for most of the interval, then climbing hard: the hole's size is how
-      // close the next break is.
-      case WAITING: return (float)(kSeed + (r - kSeed) * std::pow(f, opts_.growthCurve));
+      // Barely more than the seed for most of the interval, then climbing hard: the hole's
+      // size is how close the next break is.
+      case WAITING: return (float)(seed + (r - seed) * std::pow(f, opts_.growthCurve));
       // Ease out, so it lunges early and settles - reads as being swallowed rather than as
       // a slider being dragged.
       case SWELL:   return (float)(r + (1 - r) * (1 - std::pow(1 - f, 3)));
       case HOLD:    return 1;
       // Smoothstep rather than a decaying power: it holds near full for a moment, eases
       // down through the middle and settles gently, which reads as deflating.
-      default:      return (float)(kSeed + (1 - kSeed) * (1 - f * f * (3 - 2 * f)));
+      default:      return (float)(seed + (1 - seed) * (1 - f * f * (3 - 2 * f)));
     }
   }
   // 0 while waiting, ramping to 1 across the break: slides the hole to the middle so it
