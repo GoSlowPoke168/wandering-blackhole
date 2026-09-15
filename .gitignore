@@ -8,3 +8,5 @@ native/*.exe
 native/*.pdb
 native/*.ilk
 tools/still/out/
+native/test/*.exe
+native/test/*.obj

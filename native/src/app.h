@@ -26,6 +26,7 @@ struct Snapshot {
   RECT virt{ 0, 0, 1, 1 };
   float look[LOOK_COUNT]{};
   std::wstring hudText;
+  std::wstring phase;              // mode and clock phase, for the HUD and the smoke log
   bool restartCapture = false;     // resume / unlock / test hook; consumed by the render thread
 };
 
@@ -63,7 +64,8 @@ private:
   void renderLoop();
   void renderStats(double t, double& tStat, int& frames, int& newFrames, int& echoes,
                    int& iters, int& skipped, double& cpuMs, double& waitMs, double& acqMs,
-                   float dirtyPct, float shownLevel, UV shownCenter, bool captureLive);
+                   float dirtyPct, float shownLevel, UV shownCenter, bool captureLive,
+                   const std::wstring& phase);
 
   HINSTANCE hinst_ = nullptr;
   HWND hwnd_ = nullptr;

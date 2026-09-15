@@ -16,7 +16,10 @@
 
 using namespace winrt::Windows::Data::Json;
 
-Config::Config() { for (int i = 0; i < LOOK_COUNT; i++) look[i] = kLookDefaults[i]; }
+Config::Config() {
+  for (int i = 0; i < LOOK_COUNT; i++) look[i] = kLookDefaults[i];
+  pomodoro.growthCurve = 2.5;    // "Late surge": leaves you alone through the bulk of a block
+}
 
 std::wstring configPath() {
   wchar_t* appdata = nullptr;
@@ -84,6 +87,7 @@ Config loadConfig(const std::wstring& file) {
     c.eyebreak.breakSec = num(o, L"breakSec", c.eyebreak.breakSec);
     c.eyebreak.swellSec = num(o, L"swellSec", c.eyebreak.swellSec);
     c.eyebreak.recedeSec = num(o, L"recedeSec", c.eyebreak.recedeSec);
+    c.eyebreak.growthCurve = num(o, L"growthCurve", c.eyebreak.growthCurve);
     c.eyebreak.pauseWhenIdle = boolv(o, L"pauseWhenIdle", c.eyebreak.pauseWhenIdle);
   }
   if (auto o = obj(root, L"idle")) {
@@ -115,6 +119,7 @@ bool saveConfig(const std::wstring& file, const Config& c) {
   po.Insert(L"pauseWhenIdle", B(c.pomodoro.pauseWhenIdle)); root.Insert(L"pomodoro", po);
   JsonObject ey; ey.Insert(L"intervalMin", N(c.eyebreak.intervalMin)); ey.Insert(L"breakSec", N(c.eyebreak.breakSec));
   ey.Insert(L"swellSec", N(c.eyebreak.swellSec)); ey.Insert(L"recedeSec", N(c.eyebreak.recedeSec));
+  ey.Insert(L"growthCurve", N(c.eyebreak.growthCurve));
   ey.Insert(L"pauseWhenIdle", B(c.eyebreak.pauseWhenIdle)); root.Insert(L"eyebreak", ey);
   JsonObject id; id.Insert(L"enabled", B(c.idle.enabled)); id.Insert(L"afterSec", N(c.idle.afterSec)); id.Insert(L"fadeSec", N(c.idle.fadeSec));
   root.Insert(L"idle", id);

@@ -5,7 +5,11 @@
 #include <cmath>
 #include <string>
 
-struct EyeBreakOpts { double intervalMin = 20, breakSec = 20, swellSec = 1.5, recedeSec = 6; bool pauseWhenIdle = true; };
+struct EyeBreakOpts {
+  double intervalMin = 20, breakSec = 20, swellSec = 1.5, recedeSec = 6;
+  double growthCurve = 3;     // >1 keeps it near nothing, then surges as the break nears
+  bool pauseWhenIdle = true;
+};
 
 class EyeBreak {
 public:
@@ -17,6 +21,9 @@ public:
 
   explicit EyeBreak(const EyeBreakOpts& o = {}) { set(o); }
   void set(const EyeBreakOpts& o) { opts_ = o; }
+  // Where the waiting ramp starts, and where a recede lands. Nothing: the break has just
+  // earned you a clear screen.
+  static constexpr float kSeed = 0.f;
 
   double phaseLengthSec() const {
     switch (phase) {
@@ -48,16 +55,23 @@ public:
   void toggle()   { running = !running; }
   bool inBreak() const { return phase != WAITING; }
 
-  // Size override for the moment, or a negative value while waiting (host uses the
-  // resting size then).
-  float level(float resting) const {
-    const double r = std::max(0.f, std::min(1.f, resting));
+  // Size for the moment. `peak` is what the waiting ramp grows to - the user's "Size before
+  // a break". The phases join continuously: the ramp ends at peak where the swell picks up,
+  // and the recede lands back on the seed the next ramp starts from.
+  float level(float peak) const {
+    const double r = std::max(0.f, std::min(1.f, peak));
     const double f = frac();
     switch (phase) {
-      case SWELL:  return (float)(r + (1 - r) * (1 - std::pow(1 - f, 3)));
-      case HOLD:   return 1;
-      case RECEDE: return (float)(r + (1 - r) * (1 - f * f * (3 - 2 * f)));
-      default:     return -1;
+      // Near nothing for most of the interval, then climbing hard: the hole's size is how
+      // close the next break is.
+      case WAITING: return (float)(kSeed + (r - kSeed) * std::pow(f, opts_.growthCurve));
+      // Ease out, so it lunges early and settles - reads as being swallowed rather than as
+      // a slider being dragged.
+      case SWELL:   return (float)(r + (1 - r) * (1 - std::pow(1 - f, 3)));
+      case HOLD:    return 1;
+      // Smoothstep rather than a decaying power: it holds near full for a moment, eases
+      // down through the middle and settles gently, which reads as deflating.
+      default:      return (float)(kSeed + (1 - kSeed) * (1 - f * f * (3 - 2 * f)));
     }
   }
   // 0 while waiting, ramping to 1 across the break: slides the hole to the middle so it

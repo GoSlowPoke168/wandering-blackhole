@@ -235,7 +235,7 @@ float App::currentLevel() {
   if (cfg_.hidden) return 0;
   float base;
   if (cfg_.mode == Mode::Pomodoro) base = clock_.level();
-  else if (cfg_.mode == Mode::EyeBreak) { const float o = eyes_.level(cfg_.free.level); base = o < 0 ? cfg_.free.level : o; }
+  else if (cfg_.mode == Mode::EyeBreak) base = eyes_.level(cfg_.free.level);
   else base = cfg_.free.level;
   // An eye break must not be faded out by the idle timer.
   const float idleSafe = (cfg_.mode == Mode::EyeBreak && eyes_.inBreak()) ? 1 : idleFactor();
@@ -262,7 +262,11 @@ void App::pushState() {
     cfg_.free.still ? L"still" : L"wander", cfg_.free.still ? L"" : (std::to_wstring(cfg_.free.driftSpeed).substr(0, 4) + L"x").c_str(),
     idle >= 1 ? L"here" : (idle <= 0 ? L"away - faded out" : L"fading"));
 
+  const wchar_t* eyePhase = eyes_.phase == EyeBreak::WAITING ? L"waiting" : eyes_.phase == EyeBreak::SWELL ? L"swell"
+                          : eyes_.phase == EyeBreak::HOLD ? L"hold" : L"recede";
   std::lock_guard<std::mutex> lock(snapMu_);
+  snap_.phase = std::wstring(L"mode ") + modeName +
+                (cfg_.mode == Mode::EyeBreak ? std::wstring(L" ") + eyePhase : std::wstring());
   snap_.hidden = cfg_.hidden; snap_.hud = cfg_.hudVisible; snap_.mode = cfg_.mode;
   snap_.level = level;
   snap_.still = cfg_.free.still; snap_.pinned = { cfg_.free.center[0], cfg_.free.center[1] };
@@ -407,8 +411,8 @@ void App::showMenu() {
   sep(m);
   HMENU size = CreatePopupMenu();
   for (int i = 0; i < 5; i++) item(size, ID_SIZE + i, kSizes[i].label, sizable && approx(cfg_.free.level, kSizes[i].v), true, sizable);
-  if (eye) { sep(size); item(size, 0, L"What it shrinks back down to", false, false, false); }
-  sub(m, size, eye ? L"Size between breaks" : L"Size");
+  if (eye) { sep(size); item(size, 0, L"How big it gets just before a break", false, false, false); }
+  sub(m, size, eye ? L"Size before a break" : L"Size");
   if (eye) {
     HMENU sh = CreatePopupMenu();
     for (int i = 0; i < 4; i++) item(sh, ID_SHRINK + i, kShrink[i].label, approx((float)cfg_.eyebreak.recedeSec, kShrink[i].v, 0.01f), true);
@@ -596,7 +600,7 @@ void App::renderLoop() {
     { std::lock_guard<std::mutex> sl(snapMu_); s = snap_; snap_.restartCapture = false; }
     if (s.restartCapture) { for (auto& o : overlays_) o->restartCapture(); smoke(L"capture restart requested"); }
     renderStats(now(), tStat, frames, newFrames, echoes, iters, skipped, cpuMs, waitMs, acqMs,
-                dirtyPct, shownLevel, shownCenter, overlays_[0]->captureLive());
+                dirtyPct, shownLevel, shownCenter, overlays_[0]->captureLive(), s.phase);
 
     // Hidden: no capture, no presents, nothing on the vsync clock - it must be able to
     // sit like this for hours.
@@ -725,12 +729,14 @@ void App::renderLoop() {
 // is spinning without drawing still reports - silence then means the thread itself is gone.
 void App::renderStats(double t, double& tStat, int& frames, int& newFrames, int& echoes,
                       int& iters, int& skipped, double& cpuMs, double& waitMs, double& acqMs,
-                      float dirtyPct, float shownLevel, UV shownCenter, bool captureLive) {
+                      float dirtyPct, float shownLevel, UV shownCenter, bool captureLive,
+                      const std::wstring& phase) {
     if (t - tStat >= 1.0) {
-      wchar_t line[200];
-      swprintf(line, 200, L"fps %.1f | capture %.1f/s (%d echo) | render %.2f ms | dirty %.1f%% | level %.2f | uv %.2f,%.2f%s"
+      wchar_t line[240];
+      swprintf(line, 240, L"fps %.1f | capture %.1f/s (%d echo) | render %.2f ms | dirty %.1f%% | %s | level %.2f | uv %.2f,%.2f%s"
                L" | iters %d skipped %d wait %.1f ms acq %.1f ms",
-               frames / (t - tStat), newFrames / (t - tStat), echoes, frames ? cpuMs / frames : 0.0, dirtyPct, shownLevel,
+               frames / (t - tStat), newFrames / (t - tStat), echoes, frames ? cpuMs / frames : 0.0, dirtyPct,
+               phase.c_str(), shownLevel,
                shownCenter.x, shownCenter.y, captureLive ? L"" : L"  [capture lost]",
                iters, skipped, iters ? waitMs / iters : 0.0, iters ? acqMs / iters : 0.0);
       smoke(line);

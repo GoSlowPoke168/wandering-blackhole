@@ -38,14 +38,17 @@ over the final minute (*that collapse is the signal to stop*), and vanishes for 
 break before starting over.
 
 **Eye breaks** — the 20-20-20 rule. Every 20 minutes the hole swallows the screen for 20
-seconds so you actually look away, then shrinks back to its resting size.
+seconds so you actually look away. The whole cycle is a ramp, so the hole's size *is* how
+close the next break is: it starts at nothing, stays near nothing for most of the interval,
+climbs hard over the last few minutes to *Size before a break*, engulfs the screen, holds,
+then recedes gently back to nothing. The four phases join continuously — no jumps.
 
 ### Tray
 
 | | |
 |---|---|
 | **Hide everything** | keep running, draw nothing, stop capturing |
-| **Size** | Hidden / Small / Medium / Large / Full (free and eye-break modes) |
+| **Size** | Hidden / Small / Medium / Large / Full. In eye-break mode this is *Size before a break* — what the ramp climbs to, not a constant size |
 | **Shrink back** | eye breaks: how gradually it recedes afterwards |
 | **Movement** | Wander across all monitors, or keep it still at Centre / Top left / Top right / Upper centre / the cursor |
 | **Drift speed** | Frozen / Slow / Normal / Fast — how fast it wanders |
@@ -186,7 +189,11 @@ set TOGGLE_HIDE=5& native\BlackHolePomodoro.exe         # hide at 5s, unhide at 
 set RESTART_AT=5& native\BlackHolePomodoro.exe          # force the resume/unlock capture restart
 node_modules\.bin\electron tools\still\run-still.js     # shader port check (needs npm install)
 node tools\gen-presets.js                               # regenerate presets.gen.h after a shader update
+native\test\run.bat                                     # unit-check the pomodoro / eye-break clocks
 ```
+
+`eyebreak.growthCurve` in `config.json` shapes the ramp (1 = a straight line, 3 = the
+default late surge, higher = flatter for longer then steeper).
 
 The env vars force settings, so they never write to your real config. `SMOKE` also logs
 per-second render stats and how the first frames were classified (real vs echo).

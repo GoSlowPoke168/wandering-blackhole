@@ -12,8 +12,10 @@ struct Config {
   Mode mode = Mode::Free;
   bool hidden = false;
   struct Free { float level = 0.25f; bool still = false; float center[2] = { 0.5f, 0.35f }; float driftSpeed = 1.f; } free;
-  PomodoroOpts pomodoro{ 55, 5, 1, 2.5, false };
-  EyeBreakOpts eyebreak{ 20, 20, 1.5, 6, true };
+  // Set in the constructor, never positionally: a braced list here silently shifts every
+  // value along the moment a field is inserted into either Opts struct.
+  PomodoroOpts pomodoro;
+  EyeBreakOpts eyebreak;
   struct Idle { bool enabled = true; double afterSec = 90, fadeSec = 20; } idle;
   std::wstring preset = L"inferno";
   float look[LOOK_COUNT];
