@@ -68,6 +68,10 @@ public:
   int captureWidth() const { return capW_; }
   int captureHeight() const { return capH_; }
   bool affinityOk() const { return affinityOk_; }
+  // Fraction of this monitor's height that the shader must leave undistorted: the taskbar
+  // strip, and nothing more. Upstream's 0.33 was a terminal's work area, and applying a
+  // third of *every* window kills the warp over most of a short second monitor.
+  float workArea() const { return workArea_; }
   const std::wstring& name() const { return name_; }
   LUID adapterLuid() const { return luid_; }
 
@@ -85,6 +89,7 @@ private:
   LUID luid_{};
   std::wstring name_;
   float scale_ = 1;
+  float workArea_ = 0;
   bool affinityOk_ = false;
 
   ComPtr<ID3D11Device> dev_;

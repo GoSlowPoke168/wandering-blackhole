@@ -149,6 +149,14 @@ duplication per output, and the host owns the position. State reaches the render
 as a snapshot carrying the drift *clock*, not the position, so the wander is evaluated per
 frame and never steps.
 
+The shader keeps the bottom of each screen undistorted, and **how much is measured per
+monitor** (`MONITORINFO`'s work area) rather than taken as upstream's flat third. That third
+was a *terminal's* work area; applied to every window it killed the warp over the bottom
+half of a shorter second monitor — the virtual desktop is as tall as the tallest screen, so
+a hole at mid-height on a 1600-tall desktop lands 74% of the way down a 1080-tall one. Now
+only the taskbar strip stays clear (~0.05 of each screen here), and warping survives the
+whole roam on both.
+
 Whether the lens reaches a given window is decided by its **clamped scissor rect**, never by
 a margin guess. Those two disagreed at first: `shouldShade()` allowed 0.35 of the window
 width while a small hole's lens only reached 0.18, so a hole sitting on the *other* monitor
@@ -178,6 +186,10 @@ outputs), level 0.15, m87\* donut, static desktop, Balanced power mode:
 - **Exclusive-fullscreen apps** (some games) bypass DWM, so the overlay will not draw over
   them. Borderless fullscreen is fine.
 - **HDR / FP16 desktops** are untested; the swapchain and capture are BGRA8.
+- **The hole is sized per screen, not per desktop.** Its size is a fraction of the screen's
+  *area*, so on monitors with different pixel counts it is physically different — 81 px vs
+  57 px shadow radius across the pair here — and the two halves do not line up while it
+  straddles the seam.
 - **EDR / anti-cheat.** A topmost, click-through, capture-excluded window that continuously
   reads the desktop looks exactly like a cheat overlay. Fine personally; expect friction on
   a managed machine.

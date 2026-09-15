@@ -1,4 +1,5 @@
 #include "overlay.h"
+#include <algorithm>
 #include <cstdio>
 
 #pragma comment(lib, "d3d11.lib")
@@ -64,6 +65,9 @@ bool Overlay::init(const std::wstring& hlslPath, std::wstring* err) {
   SetLayeredWindowAttributes(hwnd_, 0, 255, LWA_ALPHA);   // a layered window is hidden until told otherwise
   affinityOk_ = SetWindowDisplayAffinity(hwnd_, WDA_EXCLUDEFROMCAPTURE) != 0;
   scale_ = GetDpiForWindow(hwnd_) / 96.f;
+  MONITORINFO mi{ sizeof(mi) };
+  if (GetMonitorInfoW(MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST), &mi) && h > 0)
+    workArea_ = std::max(0.f, std::min(0.5f, (float)(mi.rcMonitor.bottom - mi.rcWork.bottom) / h));
 
   // ---- composition swapchain, 1 frame of latency ----
   ComPtr<IDXGIDevice> dxgiDev; dev_.As(&dxgiDev);

@@ -213,8 +213,9 @@ void App::buildOverlays() {
       }
       ov->setDebug(smokeOn_);
       wchar_t line[256];
-      swprintf(line, 256, L"setup: display %s window %ldx%ld at (%ld,%ld) scale %.2f capture-excluded %s",
-               od.DeviceName, (long)ov->width(), (long)ov->height(), ov->rect().left, ov->rect().top, ov->scale(), ov->affinityOk() ? L"yes" : L"NO");
+      swprintf(line, 256, L"setup: display %s window %ldx%ld at (%ld,%ld) scale %.2f work-area %.3f capture-excluded %s",
+               od.DeviceName, (long)ov->width(), (long)ov->height(), ov->rect().left, ov->rect().top, ov->scale(),
+               ov->workArea(), ov->affinityOk() ? L"yes" : L"NO");
       smoke(line);
       overlays_.push_back(std::move(ov));
     }
@@ -684,6 +685,7 @@ void App::renderLoop() {
       u.iTime = iTime; u.TOKEN_LEVEL = shownLevel;
       u.uCenter[0] = winUV.x; u.uCenter[1] = winUV.y; u.uCenterPin = 1;
       u.uDriftTime = (float)driftNow;
+      u.look[WORK_AREA] = o.workArea();      // this monitor's taskbar, not a third of it
 
       // Whether the lens reaches this window is decided by the clamped rect, never by a
       // margin guess: on a multi-monitor desktop the hole can sit near enough to pass
