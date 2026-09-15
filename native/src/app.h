@@ -76,6 +76,7 @@ private:
 
   std::vector<std::unique_ptr<Overlay>> overlays_;
   std::mutex overlaysMu_;
+  std::vector<RECT> rects_;      // overlay rects, UI thread only - so the tick never waits on the render loop
   Snapshot snap_;
   std::mutex snapMu_;
   std::wstring renderStats_;     // written by the render thread, read at tray refresh

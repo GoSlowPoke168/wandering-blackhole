@@ -1,5 +1,6 @@
 @echo off
-rem Launches the overlay. The console window stays open while it runs; closing it
-rem quits the app. For a no-console launch, double-click "Black Hole Pomodoro.vbs".
+rem Launches the overlay. Quit it from the tray icon, or with Ctrl+Alt+Q.
+rem Build first with native\build.bat if native\BlackHolePomodoro.exe is missing.
 cd /d "%~dp0"
-node_modules\.bin\electron.cmd .
+if not exist native\BlackHolePomodoro.exe call native\build.bat
+start "" native\BlackHolePomodoro.exe

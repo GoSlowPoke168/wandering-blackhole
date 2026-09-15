@@ -1,6 +1,7 @@
 #include "app.h"
 #include "icon.h"
 #include "presets.gen.h"
+#include <dcomp.h>
 #include <dwmapi.h>
 #include <dxgi1_6.h>
 #include <shellapi.h>
@@ -12,6 +13,7 @@
 #include <map>
 
 #pragma comment(lib, "dwmapi.lib")
+#pragma comment(lib, "dcomp.lib")
 #pragma comment(lib, "wtsapi32.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "advapi32.lib")
@@ -217,6 +219,8 @@ void App::buildOverlays() {
       overlays_.push_back(std::move(ov));
     }
   }
+  rects_.clear();
+  for (auto& o : overlays_) rects_.push_back(o->rect());
 }
 
 // ------------------------------------------------------------------ state -----
@@ -240,8 +244,7 @@ float App::currentLevel() {
 
 void App::pushState() {
   const float level = currentLevel();
-  std::vector<RECT> rects;
-  { std::lock_guard<std::mutex> lock(overlaysMu_); for (auto& o : overlays_) rects.push_back(o->rect()); }
+  const std::vector<RECT>& rects = rects_;
   wchar_t hud[512];
   const float idle = idleFactor();
   const wchar_t* modeName = cfg_.hidden ? L"hidden" : cfg_.mode == Mode::Pomodoro ? L"pomodoro" : cfg_.mode == Mode::EyeBreak ? L"eyebreak" : L"free";
@@ -380,7 +383,7 @@ static void sep(HMENU m) { AppendMenuW(m, MF_SEPARATOR, 0, nullptr); }
 void App::showMenu() {
   const bool free = cfg_.mode == Mode::Free, eye = cfg_.mode == Mode::EyeBreak, wander = !cfg_.free.still;
   const bool sizable = cfg_.mode != Mode::Pomodoro && !cfg_.hidden;
-  size_t monitors; { std::lock_guard<std::mutex> lock(overlaysMu_); monitors = overlays_.size(); }
+  const size_t monitors = rects_.size();
   HMENU m = CreatePopupMenu();
   item(m, 0, statusLine() + (monitors > 1 ? L"  ·  " + std::to_wstring(monitors) + L" monitors" : L""), false, false, false);
   sep(m);
@@ -579,18 +582,18 @@ void App::renderLoop() {
   RECT prev[8]{}; bool wasDrawn[8]{};
   bool hudWasOn = false, wasHidden = false, captureWasLive[8]{};
   double last = now(), tStat = last, nextAnim = last;
-  int frames = 0, newFrames = 0, echoes = 0; double cpuMs = 0; float dirtyPct = 0;
+  int frames = 0, newFrames = 0, echoes = 0, iters = 0, skipped = 0; double cpuMs = 0, waitMs = 0, acqMs = 0, acqAsked = 0; float dirtyPct = 0;
+  bool pendingDraw = false;
   // Redraws happen when the desktop really changed (right away, that is the latency
   // that matters) or on the animation clock; never merely because our own present came
   // back through the duplication. A still hole over a still desktop costs nothing.
   const double kAnimHz = 60;
-
   while (running_) {
     std::lock_guard<std::mutex> lock(overlaysMu_);
     if (overlays_.empty()) { Sleep(50); continue; }
     Snapshot s;
     { std::lock_guard<std::mutex> sl(snapMu_); s = snap_; snap_.restartCapture = false; }
-    if (s.restartCapture) for (auto& o : overlays_) o->restartCapture();
+    if (s.restartCapture) { for (auto& o : overlays_) o->restartCapture(); smoke(L"capture restart requested"); }
 
     // Hidden: no capture, no presents, nothing on the vsync clock - it must be able to
     // sit like this for hours.
@@ -605,13 +608,27 @@ void App::renderLoop() {
     }
     if (wasHidden) { wasHidden = false; for (auto& o : overlays_) o->restartCapture(); }
 
-    WaitForSingleObject(overlays_[0]->waitable(), overlays_[0]->captureLive() ? 50 : 5);
-    const double waitUntil = nextAnim;
-    const UINT timeout = (UINT)std::max(1.0, std::min(50.0, (waitUntil - now()) * 1000));
+    // Pacing. Animating: wake on the compositor clock, poll the duplication, and draw when
+    // a real frame arrived or the animation clock is due. Idle: block on the duplication -
+    // only a real desktop change is worth waking for. Never block on the swapchain's
+    // latency waitable: DWM consumes small presents lazily on a static desktop (25-50 ms).
+    const double tPre = now(); iters++;
+    const float vAspect = (float)(s.virt.right - s.virt.left) / std::max(1L, s.virt.bottom - s.virt.top);
+    UV target = s.still ? s.pinned : wanderUV(s.driftBase + (tPre - s.driftEpoch) * s.driftSpeed, shownLevel, vAspect);
+    if (s.centring > 0) target = { target.x + (0.5f - target.x) * s.centring, target.y + (0.45f - target.y) * s.centring };
+    const bool settled = std::fabs(s.level - shownLevel) < 1e-4f && std::fabs(target.x - shownCenter.x) < 1e-5f &&
+                         std::fabs(target.y - shownCenter.y) < 1e-5f;
+    const bool animating = !settled || (!s.still && s.driftSpeed != 0) || s.look[STAR_GAIN] > 0 || s.hud;
+    if (animating && !overlays_[0]->captureLive()) Sleep(5);
+    else if (animating && DCompositionWaitForCompositorClock(0, nullptr, 20) == WAIT_FAILED) Sleep(frameMs);
+    waitMs += (now() - tPre) * 1000;
+    const UINT timeout = animating ? 0 : 50;
     bool real = false;
     static int metaLogged = 0;
+    const double ta0 = now();
     for (size_t i = 0; i < overlays_.size(); i++) {
       const Overlay::Frame f = overlays_[i]->acquire(i == 0 ? timeout : 0);
+      if (i == 0) { acqMs += (now() - ta0) * 1000; acqAsked += timeout; }
       if (f != Overlay::NoFrame) newFrames++;
       if (f == Overlay::Echo) echoes++;
       if (f == Overlay::Real) real = true;
@@ -624,14 +641,14 @@ void App::renderLoop() {
     }
 
     const double t = now(), dt = t - last;
-    const float vAspect = (float)(s.virt.right - s.virt.left) / std::max(1L, s.virt.bottom - s.virt.top);
-    UV target = s.still ? s.pinned : wanderUV(s.driftBase + (t - s.driftEpoch) * s.driftSpeed, shownLevel, vAspect);
-    if (s.centring > 0) target = { target.x + (0.5f - target.x) * s.centring, target.y + (0.45f - target.y) * s.centring };
-    const bool settled = std::fabs(s.level - shownLevel) < 1e-4f && std::fabs(target.x - shownCenter.x) < 1e-5f &&
-                         std::fabs(target.y - shownCenter.y) < 1e-5f;
-    const bool animating = !settled || s.driftSpeed != 0 || s.look[STAR_GAIN] > 0 || s.hud;
+    if (!s.still) target = wanderUV(s.driftBase + (t - s.driftEpoch) * s.driftSpeed, shownLevel, vAspect);
+    if (s.centring > 0 && !s.still) target = { target.x + (0.5f - target.x) * s.centring, target.y + (0.45f - target.y) * s.centring };
     const bool animDue = t >= nextAnim && animating;
-    if (!real && !animDue && s.hud == hudWasOn) continue;
+    pendingDraw = pendingDraw || real || s.hud != hudWasOn;
+    if (!pendingDraw && !animDue) continue;
+    // Previous present not consumed yet: keep the change pending rather than queue behind it.
+    if (WaitForSingleObject(overlays_[0]->waitable(), 0) != WAIT_OBJECT_0) { skipped++; continue; }
+    pendingDraw = false;
     if (animDue) nextAnim = t + 1.0 / kAnimHz;
     last = t;
     const double t0 = t;
@@ -683,12 +700,14 @@ void App::renderLoop() {
 
     if (t - tStat >= 1.0) {
       wchar_t line[200];
-      swprintf(line, 200, L"fps %.1f | capture %.1f/s (%d echo) | render %.2f ms | dirty %.1f%% | level %.2f | uv %.2f,%.2f%s",
+      swprintf(line, 200, L"fps %.1f | capture %.1f/s (%d echo) | render %.2f ms | dirty %.1f%% | level %.2f | uv %.2f,%.2f%s"
+               L" | iters %d skipped %d wait %.1f ms acq %.1f ms",
                frames / (t - tStat), newFrames / (t - tStat), echoes, frames ? cpuMs / frames : 0.0, dirtyPct, shownLevel,
-               shownCenter.x, shownCenter.y, overlays_[0]->captureLive() ? L"" : L"  [capture lost]");
+               shownCenter.x, shownCenter.y, overlays_[0]->captureLive() ? L"" : L"  [capture lost]",
+               iters, skipped, iters ? waitMs / iters : 0.0, iters ? acqMs / iters : 0.0);
       smoke(line);
       { std::lock_guard<std::mutex> sl(statsMu_); renderStats_ = line; }
-      frames = newFrames = echoes = 0; cpuMs = 0; tStat = t;
+      frames = newFrames = echoes = iters = skipped = 0; cpuMs = waitMs = acqMs = acqAsked = 0; tStat = t;
     }
   }
 }
