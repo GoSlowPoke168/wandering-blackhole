@@ -51,7 +51,8 @@ scales with *Size before a break*, so choosing **Hidden** still hides it complet
 
 | | |
 |---|---|
-| **Hide everything** | keep running, draw nothing, stop capturing |
+| **Pause** | freeze the drift, the disk and the clocks; the hole stays where it is |
+| **Hide and pause** | keep running, draw nothing, stop capturing — hiding always pauses too |
 | **Size** | Hidden / Small / Medium / Large / Full. In eye-break mode this is *Size before a break* — what the ramp climbs to, not a constant size |
 | **Shrink back** | eye breaks: how gradually it recedes afterwards |
 | **Movement** | Wander across all monitors, or keep it still at Centre / Top left / Top right / Upper centre / the cursor |
@@ -62,9 +63,21 @@ scales with *Size before a break*, so choosing **Hidden** still hides it complet
 | **Show HUD** | live stats in the corner |
 | **Start with Windows** | registers a Run key for this exe |
 
-**Hide everything** is the "leave it running but shut up" switch. It releases the capture,
-blanks every screen and parks the render thread, so a hidden overlay costs nothing. The
-tray and hotkeys stay live.
+**Hide and pause** is the "leave it running but shut up" switch. It releases the capture,
+blanks every screen and parks the render thread, so a hidden overlay costs nothing. The tray
+and hotkeys stay live. **Pause** on its own keeps the hole on screen but stops everything
+about it: the drift clock freezes, which halts the wander *and* the accretion disk, and
+neither timer advances, so nothing changes size behind your back. Hiding always implies
+pausing; unhiding returns you to whatever Pause was set to.
+
+### The HUD
+
+`Ctrl+Alt+H` shows the readout, and it is deliberately not a panel — amber text against a
+rule with a cursor blinking under it, the way the Ghostty shader this grew out of would have
+printed it. The glyphs carry a one-pixel outline instead of sitting on a box, so they stay
+legible over a white document without covering anything. It reports the mode and its state,
+the smoothed and target fill, the shadow radius in pixels, screen count, presence, and the
+frame cost.
 
 `Growth` is worth trying. On **Late surge** (the default) a 55-minute block sits at 8% after
 20 minutes and 23% after 30, then climbs hard over the last 15 — it leaves you alone through
@@ -80,7 +93,8 @@ the bulk of the session instead of looming the whole way.
 | `Ctrl+Alt+S` | start / pause the clock |
 | `Ctrl+Alt+B` | take an eye break now |
 | `Ctrl+Alt+K` | toggle pinned at cursor / wandering |
-| `Ctrl+Alt+X` | **hide / show everything** |
+| `Ctrl+Alt+.` | **pause / resume** |
+| `Ctrl+Alt+X` | **hide / show everything** (also pauses) |
 | `Ctrl+Alt+H` | HUD |
 | `Ctrl+Alt+Q` | **quit** |
 
@@ -207,7 +221,11 @@ set RESTART_AT=5& native\BlackHolePomodoro.exe          # force the resume/unloc
 node_modules\.bin\electron tools\still\run-still.js     # shader port check (needs npm install)
 node tools\gen-presets.js                               # regenerate presets.gen.h after a shader update
 native\test\run.bat                                     # unit-check the pomodoro / eye-break clocks
+set BHP_CAPTURABLE=1& native\BlackHolePomodoro.exe      # drop the capture exclusion so the HUD can be screenshotted
 ```
+
+`BHP_CAPTURABLE` exists only for working on the HUD: without the exclusion the lens captures
+its own output and the desktop recurses into itself, so never leave it set.
 
 `eyebreak.growthCurve` in `config.json` shapes the ramp (1 = a straight line, 3 = the
 default late surge, higher = flatter for longer then steeper).

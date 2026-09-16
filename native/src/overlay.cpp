@@ -63,7 +63,11 @@ bool Overlay::init(const std::wstring& hlslPath, std::wstring* err) {
                           rect_.left, rect_.top, w, h, nullptr, nullptr, hinst_, nullptr);
   if (!hwnd_) return fail(L"CreateWindowEx", HRESULT_FROM_WIN32(GetLastError()));
   SetLayeredWindowAttributes(hwnd_, 0, 255, LWA_ALPHA);   // a layered window is hidden until told otherwise
-  affinityOk_ = SetWindowDisplayAffinity(hwnd_, WDA_EXCLUDEFROMCAPTURE) != 0;
+  // Dev hook: BHP_CAPTURABLE=1 drops the capture exclusion so the overlay can be
+  // screenshotted while working on the HUD. Never on by default - without the exclusion the
+  // lens captures its own output and the desktop recurses into itself.
+  affinityOk_ = GetEnvironmentVariableW(L"BHP_CAPTURABLE", nullptr, 0)
+              ? false : SetWindowDisplayAffinity(hwnd_, WDA_EXCLUDEFROMCAPTURE) != 0;
   scale_ = GetDpiForWindow(hwnd_) / 96.f;
   MONITORINFO mi{ sizeof(mi) };
   if (GetMonitorInfoW(MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST), &mi) && h > 0)

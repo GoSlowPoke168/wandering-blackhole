@@ -65,6 +65,7 @@ Config loadConfig(const std::wstring& file) {
   const std::wstring mode = str(root, L"mode", L"free");
   c.mode = mode == L"pomodoro" ? Mode::Pomodoro : mode == L"eyebreak" ? Mode::EyeBreak : Mode::Free;
   c.hidden = boolv(root, L"hidden", c.hidden);
+  c.paused = boolv(root, L"paused", c.paused);
   if (auto o = obj(root, L"free")) {
     c.free.level = (float)num(o, L"level", c.free.level);
     c.free.still = str(o, L"motion", c.free.still ? L"still" : L"wander") == L"still";
@@ -111,6 +112,7 @@ bool saveConfig(const std::wstring& file, const Config& c) {
   JsonObject root;
   root.Insert(L"mode", S(c.mode == Mode::Pomodoro ? L"pomodoro" : c.mode == Mode::EyeBreak ? L"eyebreak" : L"free"));
   root.Insert(L"hidden", B(c.hidden));
+  root.Insert(L"paused", B(c.paused));
   JsonObject fr; fr.Insert(L"level", N(c.free.level)); fr.Insert(L"motion", S(c.free.still ? L"still" : L"wander"));
   JsonArray ctr; ctr.Append(N(c.free.center[0])); ctr.Append(N(c.free.center[1])); fr.Insert(L"center", ctr);
   fr.Insert(L"driftSpeed", N(c.free.driftSpeed)); root.Insert(L"free", fr);

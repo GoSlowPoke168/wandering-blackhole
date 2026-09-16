@@ -25,7 +25,7 @@ static UINT g_taskbarCreated = 0;
 
 // Menu command ids. Ranges for the parametrised radio groups.
 enum {
-  ID_HIDE = 100, ID_MODE_FREE, ID_MODE_POMO, ID_MODE_EYE, ID_EYE_TOGGLE, ID_EYE_BREAKNOW,
+  ID_PAUSE = 100, ID_HIDE, ID_MODE_FREE, ID_MODE_POMO, ID_MODE_EYE, ID_EYE_TOGGLE, ID_EYE_BREAKNOW,
   ID_POMO_TOGGLE, ID_POMO_SKIP, ID_POMO_RESET, ID_WANDER, ID_PIN_CURSOR, ID_IDLE_FADE, ID_HUD,
   ID_AUTOSTART, ID_QUIT,
   ID_SIZE = 200, ID_SHRINK = 210, ID_DRIFT = 220, ID_PIN = 230, ID_CURVE = 240, ID_PRESET = 300,
@@ -40,13 +40,14 @@ static const Pin kPins[] = { { L"Centre", 0.50f, 0.40f }, { L"Top left", 0.22f, 
 
 // Hotkeys: the overlay is click-through and invisible to capture, so these and the tray
 // are the whole control surface. A working quit key is a safety requirement.
-enum { HK_QUIT = 1, HK_HIDE, HK_HUD, HK_UP, HK_DOWN, HK_RBRACKET, HK_LBRACKET, HK_ZERO, HK_ONE, HK_MODE, HK_BREAK, HK_START, HK_PIN };
+enum { HK_QUIT = 1, HK_HIDE, HK_HUD, HK_UP, HK_DOWN, HK_RBRACKET, HK_LBRACKET, HK_ZERO, HK_ONE, HK_MODE, HK_BREAK, HK_START, HK_PIN, HK_PAUSE };
 static const struct { int id; UINT vk; const wchar_t* name; } kHotkeys[] = {
   { HK_QUIT, 'Q', L"Control+Alt+Q" }, { HK_HIDE, 'X', L"Control+Alt+X" }, { HK_HUD, 'H', L"Control+Alt+H" },
   { HK_UP, VK_UP, L"Control+Alt+Up" }, { HK_DOWN, VK_DOWN, L"Control+Alt+Down" },
   { HK_RBRACKET, VK_OEM_6, L"Control+Alt+]" }, { HK_LBRACKET, VK_OEM_4, L"Control+Alt+[" },
   { HK_ZERO, '0', L"Control+Alt+0" }, { HK_ONE, '1', L"Control+Alt+1" }, { HK_MODE, 'P', L"Control+Alt+P" },
   { HK_BREAK, 'B', L"Control+Alt+B" }, { HK_START, 'S', L"Control+Alt+S" }, { HK_PIN, 'K', L"Control+Alt+K" },
+  { HK_PAUSE, VK_OEM_PERIOD, L"Control+Alt+." },
 };
 
 static double now() {
@@ -246,36 +247,39 @@ float App::currentLevel() {
 void App::pushState() {
   const float level = currentLevel();
   const std::vector<RECT>& rects = rects_;
-  wchar_t hud[512];
   const float idle = idleFactor();
   const wchar_t* modeName = cfg_.hidden ? L"hidden" : cfg_.mode == Mode::Pomodoro ? L"pomodoro" : cfg_.mode == Mode::EyeBreak ? L"eyebreak" : L"free";
-  std::wstring phase;
-  if (cfg_.mode == Mode::Pomodoro && !cfg_.hidden) {
-    const wchar_t* p = clock_.phase == Pomodoro::FOCUS ? L"focus" : clock_.phase == Pomodoro::BREAK ? L"break" : L"idle";
-    phase = std::wstring(L"  ") + p + L" " + clock_.remaining() + (clock_.running ? L"" : L" (paused)");
-  } else if (cfg_.mode == Mode::EyeBreak && !cfg_.hidden) {
-    phase = eyes_.inBreak() ? L"  LOOK AWAY  " + eyes_.remaining() : L"  next in " + eyes_.remaining();
+  const std::wstring modeShown = std::wstring(modeName) + (frozen() ? L" (paused)" : L"");
+  // The HUD's first line: the mode is the key, its own state is the value.
+  std::wstring status;
+  if (cfg_.hidden) status = L"drawing nothing";
+  else if (cfg_.mode == Mode::Pomodoro) {
+    status = clock_.phase == Pomodoro::IDLE ? L"not started"
+           : std::wstring(clock_.phase == Pomodoro::FOCUS ? L"focus" : L"break") + L" · " + clock_.remaining();
+    if (clock_.phase != Pomodoro::IDLE && !clock_.running) status += L" · stopped";
+  } else if (cfg_.mode == Mode::EyeBreak) {
+    status = eyes_.inBreak() ? L"LOOK AWAY · " + eyes_.remaining() : L"waiting · next " + eyes_.remaining();
+    if (!eyes_.running) status += L" · stopped";
+  } else {
+    status = L"size " + std::to_wstring((int)std::lround(cfg_.free.level * 100)) + L"%";
   }
-  swprintf(hud, 512,
-    L"BLACK HOLE POMODORO%s\nmode     %s%s\nlevel    -> %.2f\nmotion   %s %s\npresence %s\n",
-    rects.size() > 1 ? (L"   (" + std::to_wstring(rects.size()) + L" monitors)").c_str() : L"",
-    modeName, phase.c_str(), level,
-    cfg_.free.still ? L"still" : L"wander", cfg_.free.still ? L"" : (std::to_wstring(cfg_.free.driftSpeed).substr(0, 4) + L"x").c_str(),
-    idle >= 1 ? L"here" : (idle <= 0 ? L"away - faded out" : L"fading"));
+  if (cfg_.paused && !cfg_.hidden) status += L" · paused";
+  const std::wstring hud = modeShown + L"\t" + status;
 
   const wchar_t* eyePhase = eyes_.phase == EyeBreak::WAITING ? L"waiting" : eyes_.phase == EyeBreak::SWELL ? L"swell"
                           : eyes_.phase == EyeBreak::HOLD ? L"hold" : L"recede";
   std::lock_guard<std::mutex> lock(snapMu_);
-  snap_.phase = std::wstring(L"mode ") + modeName +
+  snap_.phase = std::wstring(L"mode ") + modeShown +
                 (cfg_.mode == Mode::EyeBreak ? std::wstring(L" ") + eyePhase : std::wstring());
   snap_.hidden = cfg_.hidden; snap_.hud = cfg_.hudVisible; snap_.mode = cfg_.mode;
   snap_.level = level;
   snap_.still = cfg_.free.still; snap_.pinned = { cfg_.free.center[0], cfg_.free.center[1] };
-  snap_.driftBase = driftTime_; snap_.driftSpeed = cfg_.hidden ? 0 : cfg_.free.driftSpeed; snap_.driftEpoch = now();
+  snap_.driftBase = driftTime_; snap_.driftSpeed = frozen() ? 0 : cfg_.free.driftSpeed; snap_.driftEpoch = now();
   snap_.centring = cfg_.mode == Mode::EyeBreak ? eyes_.centring() : 0;
   snap_.virt = virtualBounds(rects);
   for (int i = 0; i < LOOK_COUNT; i++) snap_.look[i] = cfg_.look[i];
   snap_.hudText = hud;
+  snap_.presence = idle >= 1 ? L"here" : (idle <= 0 ? L"away" : L"fading");
 }
 
 void App::persist() { if (!testRun_) saveConfig(configFile_, cfg_); }
@@ -292,6 +296,7 @@ void App::setMode(Mode m) {
   pushState(); persist(); refreshTray();
 }
 void App::setHidden(bool v) { cfg_.hidden = v; pushState(); persist(); refreshTray(); }
+void App::setPaused(bool v) { cfg_.paused = v; pushState(); persist(); refreshTray(); }
 void App::applyPreset(const std::wstring& name) {
   for (int i = 0; i < kPresetCount; i++) if (name == kPresets[i].name) {
     cfg_.preset = name;
@@ -320,7 +325,8 @@ void App::setAutostart(bool on) {
 // ------------------------------------------------------------------- tick -----
 void App::tick() {
   const double t = now(), dt = t - lastTick_; lastTick_ = t;
-  if (!cfg_.hidden) driftTime_ += dt * cfg_.free.driftSpeed;
+  if (frozen()) { pushState(); return; }      // nothing moves and no clock advances
+  driftTime_ += dt * cfg_.free.driftSpeed;
   bool trayDirty = false;
   if (cfg_.mode == Mode::Pomodoro) {
     const auto before = std::make_pair(clock_.phase, clock_.running);
@@ -348,19 +354,20 @@ void App::tick() {
 
 // ------------------------------------------------------------------- tray -----
 std::wstring App::statusLine() {
-  if (cfg_.hidden) return L"Hidden";
-  if (cfg_.mode == Mode::Free) return L"Free · size " + std::to_wstring((int)std::lround(cfg_.free.level * 100)) + L"%";
+  if (cfg_.hidden) return L"Hidden · paused";
+  const std::wstring prefix = cfg_.paused ? L"Paused · " : L"";
+  if (cfg_.mode == Mode::Free) return prefix + L"Free · size " + std::to_wstring((int)std::lround(cfg_.free.level * 100)) + L"%";
   if (cfg_.mode == Mode::EyeBreak) {
-    if (eyes_.inBreak()) return L"LOOK AWAY · " + eyes_.remaining();
-    return L"Eye break in " + eyes_.remaining() + (eyes_.running ? L"" : L" (paused)");
+    if (eyes_.inBreak()) return prefix + L"LOOK AWAY · " + eyes_.remaining();
+    return prefix + L"Eye break in " + eyes_.remaining() + (eyes_.running ? L"" : L" (stopped)");
   }
-  if (clock_.phase == Pomodoro::IDLE) return L"Pomodoro · not started";
-  return std::wstring(clock_.phase == Pomodoro::FOCUS ? L"Focus" : L"Break") + L" · " + clock_.remaining() + (clock_.running ? L"" : L" (paused)");
+  if (clock_.phase == Pomodoro::IDLE) return prefix + L"Pomodoro · not started";
+  return prefix + (clock_.phase == Pomodoro::FOCUS ? L"Focus" : L"Break") + L" · " + clock_.remaining() + (clock_.running ? L"" : L" (stopped)");
 }
 
 void App::refreshTray() {
   const bool free = cfg_.mode == Mode::Free;
-  const int iconState = cfg_.hidden ? 0 : ((free || clock_.running) ? 2 : 1);
+  const int iconState = cfg_.hidden ? 0 : (cfg_.paused ? 1 : ((free || clock_.running) ? 2 : 1));
   NOTIFYICONDATAW nid{ sizeof(nid) }; nid.hWnd = hwnd_; nid.uID = 1;
   nid.uFlags = NIF_TIP | NIF_MESSAGE; nid.uCallbackMessage = WM_APP_TRAY;
   lastTip_ = L"Black Hole Pomodoro - " + statusLine();
@@ -392,7 +399,10 @@ void App::showMenu() {
   HMENU m = CreatePopupMenu();
   item(m, 0, statusLine() + (monitors > 1 ? L"  ·  " + std::to_wstring(monitors) + L" monitors" : L""), false, false, false);
   sep(m);
-  item(m, ID_HIDE, L"Hide everything", cfg_.hidden);
+  // Pause reads as checked while hidden, because hiding freezes everything too - and it is
+  // greyed there, since unhiding is what resumes.
+  item(m, ID_PAUSE, L"Pause", frozen(), false, !cfg_.hidden);
+  item(m, ID_HIDE, L"Hide and pause", cfg_.hidden);
   sep(m);
   item(m, ID_MODE_FREE, L"Free mode", free, true, !cfg_.hidden);
   item(m, ID_MODE_POMO, L"Pomodoro mode", cfg_.mode == Mode::Pomodoro, true, !cfg_.hidden);
@@ -462,6 +472,7 @@ void App::onCommand(int id) {
   if (id >= ID_PIN && id < ID_PIN + 4) { pinAt(kPins[id - ID_PIN].x, kPins[id - ID_PIN].y); return; }
   if (id >= ID_CURVE && id < ID_CURVE + 3) { cfg_.pomodoro.growthCurve = kCurves[id - ID_CURVE].v; clock_.set(cfg_.pomodoro); pushState(); persist(); refreshTray(); return; }
   switch (id) {
+    case ID_PAUSE: setPaused(!cfg_.paused); break;
     case ID_HIDE: setHidden(!cfg_.hidden); break;
     case ID_MODE_FREE: setMode(Mode::Free); break;
     case ID_MODE_POMO: setMode(Mode::Pomodoro); break;
@@ -484,6 +495,7 @@ void App::onHotkey(int id) {
   const auto nudge = [&](float d) { setLevel(cfg_.free.level + d); };
   switch (id) {
     case HK_QUIT: quit(); break;
+    case HK_PAUSE: setPaused(!cfg_.paused); break;
     case HK_HIDE: setHidden(!cfg_.hidden); break;
     case HK_HUD: cfg_.hudVisible = !cfg_.hudVisible; pushState(); persist(); refreshTray(); break;
     case HK_UP: case HK_RBRACKET: nudge(+0.05f); break;
@@ -559,12 +571,17 @@ LRESULT App::handle(HWND h, UINT m, WPARAM w, LPARAM l) {
 // lens falls off as exp(-(d/7rh)^2) and is invisible past about 14 shadow radii
 // (measured by tools/still: coverage stops at ~12-13 rh).
 static const float kLensReach = 14.f;
-static RECT lensRect(UV winUV, float level, int w, int h, const float* look) {
+// The shadow's radius on this screen, in px - the one number that says how big the hole
+// actually is, so the HUD reports it too.
+static float shadowRadiusPx(float level, int w, int h, const float* look) {
   const float aspect = (float)w / h;
   const float g = std::pow(std::max(0.f, std::min(1.f, level)), look[TOKEN_EASE]);
   const float rhMin = std::sqrt(look[TOKEN_AREA_MIN] * aspect / 3.1415927f);
   const float rhMax = std::sqrt(look[TOKEN_AREA_MAX] * aspect / 3.1415927f);
-  const float rh = (rhMin + (rhMax - rhMin) * g) * (look[HOLE_RADIUS] / 0.08f) * h;   // px
+  return (rhMin + (rhMax - rhMin) * g) * (look[HOLE_RADIUS] / 0.08f) * h;
+}
+static RECT lensRect(UV winUV, float level, int w, int h, const float* look) {
+  const float rh = shadowRadiusPx(level, w, h, look);
   const float R = kLensReach * rh + 16;
   const float cx = winUV.x * w, cy = winUV.y * h;
   return { (LONG)std::max(0.f, std::floor(cx - R)), (LONG)std::max(0.f, std::floor(cy - R)),
@@ -703,10 +720,20 @@ void App::renderLoop() {
       RECT dirty = unite(cur, wasDrawn[i] ? prev[i] : RECT{ 0, 0, 0, 0 });
       if (hudOn) {
         if (Hud* hud = o.hud()) {
-          wchar_t stats[160];
-          swprintf(stats, 160, L"fps      %.0f   capture %d/s   render %.2f ms   dirty %.0f%%\n\nctrl+alt  Up/Down size  P mode  S start\n          X hide  K pin  H hud  Q quit",
-                   frames / std::max(0.001, t - tStat), (int)(newFrames / std::max(0.001, t - tStat)), frames ? cpuMs / frames : 0.0, dirtyPct);
-          hud->setText(s.hudText + stats);
+          const std::wstring motion = s.still ? L"still"
+                                    : L"wander " + std::to_wstring(s.driftSpeed).substr(0, 3) + L"×";
+          wchar_t rest[400];
+          swprintf(rest, 400,
+                   L"level\t%.2f → %.2f · %s\n"
+                   L"lens\t%.0f px · %d screen%s · %s\n"
+                   L"render\t%.0f fps · %.2f ms · dirty %.0f%%\n"
+                   L"ctrl+alt\t↑↓ size · P mode · S start · . pause\n"
+                   L"\tX hide · K pin · H hud · Q quit",
+                   shownLevel, s.level, motion.c_str(),
+                   shadowRadiusPx(shownLevel, w, h, u.look), (int)overlays_.size(),
+                   overlays_.size() == 1 ? L"" : L"s", s.presence.c_str(),
+                   frames / std::max(0.001, t - tStat), frames ? cpuMs / frames : 0.0, dirtyPct);
+          hud->setText(s.hudText + L"\n" + rest);
           dirty = unite(dirty, hud->rect());
         }
       } else if (hudWasOn && i == 0 && o.hud()) dirty = unite(dirty, o.hud()->rect());

@@ -12,9 +12,12 @@
 
 using Microsoft::WRL::ComPtr;
 
-// The on-screen HUD: Direct2D text drawn straight onto the swapchain back buffer after
-// the shader. Nothing is created until the HUD is first shown, and drawing it costs a
-// small text layout inside the dirty rect - zero when it is off.
+// The on-screen readout, in the terminal this shader came from: no panel, no border, just
+// amber text against a rule with a cursor still blinking under it. Legibility over an
+// arbitrary desktop comes from outlining the glyphs rather than from a box behind them.
+//
+// Text arrives as lines of "key\tvalue". The two columns are laid out separately so each
+// draws in one colour, which keeps every pass single-brush.
 class Hud {
 public:
   bool init(ID3D11Device* dev, IDXGISwapChain1* swap, float scale, std::string* err);
@@ -22,14 +25,19 @@ public:
   RECT rect() const { return rect_; }        // window px, for the dirty-rect union
   void draw();
 private:
+  void drawOutlined(IDWriteTextLayout* layout, float x, float y, ID2D1Brush* fill);
+
   ComPtr<ID2D1Factory1> factory_;
   ComPtr<ID2D1DeviceContext> ctx_;
   ComPtr<ID2D1Bitmap1> target_;
-  ComPtr<ID2D1SolidColorBrush> bg_, border_, fg_;
+  ComPtr<ID2D1SolidColorBrush> fg_, dim_, shadow_;
   ComPtr<IDWriteFactory> dwrite_;
   ComPtr<IDWriteTextFormat> format_;
-  ComPtr<IDWriteTextLayout> layout_;
+  ComPtr<IDWriteTextLayout> keys_, vals_;
   std::wstring text_;
   float scale_ = 1;
+  float colX_ = 0;        // x of the value column, relative to the text origin
+  float lineH_ = 0;       // one line, for placing the cursor
+  int lines_ = 0;
   RECT rect_{};
 };

@@ -25,7 +25,8 @@ struct Snapshot {
   float centring = 0;              // eye break: slide toward the middle
   RECT virt{ 0, 0, 1, 1 };
   float look[LOOK_COUNT]{};
-  std::wstring hudText;
+  std::wstring hudText;            // the HUD's first line, as "key\tvalue"
+  std::wstring presence;           // here / fading / away
   std::wstring phase;              // mode and clock phase, for the HUD and the smoke log
   bool restartCapture = false;     // resume / unlock / test hook; consumed by the render thread
 };
@@ -50,6 +51,10 @@ private:
   void setLevel(float v);
   void setMode(Mode m);
   void setHidden(bool v);
+  void setPaused(bool v);
+  // Hiding implies pausing: a hidden hole that kept counting would swell into an eye break
+  // you never see, and come back a different size than you left it.
+  bool frozen() const { return cfg_.paused || cfg_.hidden; }
   void applyPreset(const std::wstring& name);
   void pinAt(float x, float y);
   void pinAtCursor();
