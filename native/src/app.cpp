@@ -264,7 +264,9 @@ void App::pushState() {
     status = L"size " + std::to_wstring((int)std::lround(cfg_.free.level * 100)) + L"%";
   }
   if (cfg_.paused && !cfg_.hidden) status += L" · paused";
-  const std::wstring hud = modeShown + L"\t" + status;
+  // The key column is as wide as its widest entry, so the mode keeps its bare name here and
+  // says it is paused in the value instead.
+  const std::wstring hud = std::wstring(modeName) + L"\t" + status;
 
   const wchar_t* eyePhase = eyes_.phase == EyeBreak::WAITING ? L"waiting" : eyes_.phase == EyeBreak::SWELL ? L"swell"
                           : eyes_.phase == EyeBreak::HOLD ? L"hold" : L"recede";
@@ -720,7 +722,9 @@ void App::renderLoop() {
       RECT dirty = unite(cur, wasDrawn[i] ? prev[i] : RECT{ 0, 0, 0, 0 });
       if (hudOn) {
         if (Hud* hud = o.hud()) {
+          // A paused snapshot carries driftSpeed 0; say so rather than report "wander 0.0x".
           const std::wstring motion = s.still ? L"still"
+                                    : s.driftSpeed == 0 ? L"frozen"
                                     : L"wander " + std::to_wstring(s.driftSpeed).substr(0, 3) + L"×";
           wchar_t rest[400];
           swprintf(rest, 400,

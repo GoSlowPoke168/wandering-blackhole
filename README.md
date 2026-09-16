@@ -72,12 +72,14 @@ pausing; unhiding returns you to whatever Pause was set to.
 
 ### The HUD
 
-`Ctrl+Alt+H` shows the readout, and it is deliberately not a panel — amber text against a
-rule with a cursor blinking under it, the way the Ghostty shader this grew out of would have
-printed it. The glyphs carry a one-pixel outline instead of sitting on a box, so they stay
-legible over a white document without covering anything. It reports the mode and its state,
-the smoothed and target fill, the shadow radius in pixels, screen count, presence, and the
-frame cost.
+`Ctrl+Alt+H` shows the readout: amber on a near-black ground with a rule down its left edge
+and a cursor blinking under it, the way the Ghostty shader this grew out of would have
+printed it. Square corners, no border, keys dim and values bright. It reports the mode and
+its state, the smoothed and target fill, the shadow radius in pixels, screen count, presence,
+and the frame cost.
+
+Outlining the glyphs and skipping the ground was tried first — it looked better over a
+photograph and was unreadable over a code editor, which is where this actually gets used.
 
 `Growth` is worth trying. On **Late surge** (the default) a 55-minute block sits at 8% after
 20 minutes and 23% after 30, then climbs hard over the last 15 — it leaves you alone through

@@ -6,8 +6,9 @@
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
 
-// Geometry, in unscaled px. The rule is the only chrome there is.
-static const float kOriginX = 18, kOriginY = 16, kBarW = 3, kBarGap = 11;
+// Geometry, in unscaled px. The rule sits on the left edge of the ground, not beside it.
+static const float kOriginX = 18, kOriginY = 16, kBarW = 3, kBarGap = 12;
+static const float kPadR = 14, kPadT = 9, kPadB = 9;
 static const float kFontSize = 13, kLineH = 22.75f, kColGap = 2;   // colGap in character widths
 
 bool Hud::init(ID3D11Device* dev, IDXGISwapChain1* swap, float scale, std::string* err) {
@@ -26,8 +27,11 @@ bool Hud::init(ID3D11Device* dev, IDXGISwapChain1* swap, float scale, std::strin
   ctx_->SetTarget(target_.Get());
 
   ctx_->CreateSolidColorBrush(D2D1::ColorF(1.f, 176 / 255.f, 0.f, 1.f), &fg_);        // #FFB000
-  ctx_->CreateSolidColorBrush(D2D1::ColorF(0x9A / 255.f, 0x73 / 255.f, 0x30 / 255.f, 1.f), &dim_);
-  ctx_->CreateSolidColorBrush(D2D1::ColorF(0, 0, 0, 0.85f), &shadow_);
+  // Lifted from #9A7330: legible on the ground, still clearly the quieter column.
+  ctx_->CreateSolidColorBrush(D2D1::ColorF(0xBE / 255.f, 0x92 / 255.f, 0x45 / 255.f, 1.f), &dim_);
+  // Near enough to opaque that nothing behind reads through: anything less and busy windows
+  // under the readout fight the text, which is the whole reason the ground is here.
+  ctx_->CreateSolidColorBrush(D2D1::ColorF(0x05 / 255.f, 0x06 / 255.f, 0x0A / 255.f, 0.96f), &scrim_);
 
   if (FAILED(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown**)dwrite_.GetAddressOf())))
     { *err = "DWriteCreateFactory"; return false; }
@@ -82,37 +86,31 @@ void Hud::setText(const std::wstring& text) {
   }
   colX_ = km.widthIncludingTrailingWhitespace + chw * kColGap;
   lineH_ = kLineH * scale_;
+  textH_ = std::max(km.height, vm.height);
 
   const float textX = kOriginX * scale_ + kBarW * scale_ + kBarGap * scale_;
-  const float w = colX_ + vm.widthIncludingTrailingWhitespace;
-  const float h = std::max(km.height, vm.height);
-  rect_ = { (LONG)(kOriginX * scale_), (LONG)(kOriginY * scale_),
-            (LONG)std::ceil(textX + w + 4 * scale_),
-            (LONG)std::ceil(kOriginY * scale_ + h + lineH_ + 2 * scale_) };   // + the cursor line
-}
-
-// A box behind the text would make this a panel again, so the glyphs carry their own
-// contrast: a one-pixel outline in near-black, then the fill.
-void Hud::drawOutlined(IDWriteTextLayout* layout, float x, float y, ID2D1Brush* fill) {
-  const float o = std::max(1.f, std::floor(scale_));
-  const D2D1_POINT_2F around[4] = { { x - o, y }, { x + o, y }, { x, y - o }, { x, y + o } };
-  for (const auto& p : around) ctx_->DrawTextLayout(p, layout, shadow_.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
-  ctx_->DrawTextLayout(D2D1::Point2F(x, y), layout, fill, D2D1_DRAW_TEXT_OPTIONS_NONE);
+  const float right = textX + colX_ + vm.widthIncludingTrailingWhitespace + kPadR * scale_;
+  const float bottom = kOriginY * scale_ + kPadT * scale_ + textH_
+                     + 4 * scale_ + kFontSize * scale_ + kPadB * scale_;   // + the cursor line
+  rect_ = { (LONG)(kOriginX * scale_), (LONG)(kOriginY * scale_), (LONG)std::ceil(right), (LONG)std::ceil(bottom) };
 }
 
 void Hud::draw() {
   if (!keys_ || !vals_) return;
-  const float x0 = kOriginX * scale_, y0 = kOriginY * scale_;
+  const float x0 = (float)rect_.left, y0 = (float)rect_.top;
+  const float x1 = (float)rect_.right, y1 = (float)rect_.bottom;
   const float textX = x0 + kBarW * scale_ + kBarGap * scale_;
-  const float h = (float)(rect_.bottom - rect_.top) - lineH_ - 2 * scale_;
+  const float textY = y0 + kPadT * scale_;
 
   ctx_->BeginDraw();
-  ctx_->FillRectangle(D2D1::RectF(x0, y0, x0 + kBarW * scale_, y0 + h), fg_.Get());
-  drawOutlined(keys_.Get(), textX, y0, dim_.Get());
-  drawOutlined(vals_.Get(), textX + colX_, y0, fg_.Get());
+  // Square corners and no border: a terminal has a ground, not a card.
+  ctx_->FillRectangle(D2D1::RectF(x0, y0, x1, y1), scrim_.Get());
+  ctx_->FillRectangle(D2D1::RectF(x0, y0, x0 + kBarW * scale_, y1), fg_.Get());
+  ctx_->DrawTextLayout(D2D1::Point2F(textX, textY), keys_.Get(), dim_.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
+  ctx_->DrawTextLayout(D2D1::Point2F(textX + colX_, textY), vals_.Get(), fg_.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
   // A prompt waiting on its own line, blinking at the terminal's own cadence.
   if (GetTickCount64() % 1200 < 620) {
-    const float cy = y0 + h + 4 * scale_;
+    const float cy = textY + textH_ + 4 * scale_;
     ctx_->FillRectangle(D2D1::RectF(textX, cy, textX + kFontSize * 0.6f * scale_, cy + kFontSize * scale_), fg_.Get());
   }
   ctx_->EndDraw();
