@@ -33,8 +33,14 @@ int main() {
   }
   // The ramp must be convex: barely more than the seed early, climbing hard late.
   { EyeBreak a(o), b(o); a.elapsed = 5; b.elapsed = 9;
-    check(a.level(peak) < 0.2f, "half way through the interval the hole is still small");
-    check(b.level(peak) > 0.6f, "near the break the hole is large"); }
+    check(a.level(peak) < 0.3f * peak, "half way through the interval the hole is still small");
+    check(b.level(peak) > 0.6f * peak, "near the break the hole is large"); }
+
+  // Changing the size must change what is on screen at every point in the interval,
+  // including the very start - otherwise the size keys look dead.
+  { for (double at : { 0.0, 3.0, 7.0, 10.0 }) {
+      EyeBreak a(o), b(o); a.elapsed = at; b.elapsed = at;
+      check(b.level(0.45f) > a.level(0.40f) * 1.05f, "a size nudge moves the hole while waiting"); } }
 
   // The hole must stay visible the whole interval - vanishing reads as the app having died.
   { for (int i = 0; i <= 10; i++) { EyeBreak t(o); t.elapsed = i * 1.0;

@@ -90,8 +90,7 @@ void Hud::setText(const std::wstring& text) {
 
   const float textX = kOriginX * scale_ + kBarW * scale_ + kBarGap * scale_;
   const float right = textX + colX_ + vm.widthIncludingTrailingWhitespace + kPadR * scale_;
-  const float bottom = kOriginY * scale_ + kPadT * scale_ + textH_
-                     + 4 * scale_ + kFontSize * scale_ + kPadB * scale_;   // + the cursor line
+  const float bottom = kOriginY * scale_ + kPadT * scale_ + textH_ + kPadB * scale_;
   rect_ = { (LONG)(kOriginX * scale_), (LONG)(kOriginY * scale_), (LONG)std::ceil(right), (LONG)std::ceil(bottom) };
 }
 
@@ -108,10 +107,5 @@ void Hud::draw() {
   ctx_->FillRectangle(D2D1::RectF(x0, y0, x0 + kBarW * scale_, y1), fg_.Get());
   ctx_->DrawTextLayout(D2D1::Point2F(textX, textY), keys_.Get(), dim_.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
   ctx_->DrawTextLayout(D2D1::Point2F(textX + colX_, textY), vals_.Get(), fg_.Get(), D2D1_DRAW_TEXT_OPTIONS_NONE);
-  // A prompt waiting on its own line, blinking at the terminal's own cadence.
-  if (GetTickCount64() % 1200 < 620) {
-    const float cy = textY + textH_ + 4 * scale_;
-    ctx_->FillRectangle(D2D1::RectF(textX, cy, textX + kFontSize * 0.6f * scale_, cy + kFontSize * scale_), fg_.Get());
-  }
   ctx_->EndDraw();
 }

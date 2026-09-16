@@ -260,6 +260,9 @@ void App::pushState() {
   } else if (cfg_.mode == Mode::EyeBreak) {
     status = eyes_.inBreak() ? L"LOOK AWAY · " + eyes_.remaining() : L"waiting · next " + eyes_.remaining();
     if (!eyes_.running) status += L" · stopped";
+    // The clock owns the size here, so the size keys set the ceiling the ramp climbs to.
+    // Show it, or pressing them looks like nothing happened.
+    status += L" · to " + std::to_wstring((int)std::lround(cfg_.free.level * 100)) + L"%";
   } else {
     status = L"size " + std::to_wstring((int)std::lround(cfg_.free.level * 100)) + L"%";
   }

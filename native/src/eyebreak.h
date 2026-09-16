@@ -24,9 +24,13 @@ public:
 
   // Where the waiting ramp starts and where a recede lands. Not nothing: a hole that
   // vanishes for minutes reads as the app having died, and switching into eye-break mode
-  // would answer the keypress with an empty screen. Scaled to the chosen size, so picking
-  // "Hidden" still hides it.
-  static float seedFor(float peak) { return std::min(0.06f, std::max(0.f, peak) * 0.25f); }
+  // would answer the keypress with an empty screen.
+  //
+  // A plain fraction of the chosen size, with no floor of its own. An absolute cap was tried
+  // and made every size above about a quarter start at the same seed, so changing the size
+  // did nothing at all until the ramp had climbed - the size control looked broken. Picking
+  // "Hidden" still hides it, since zero times anything is zero.
+  static float seedFor(float peak) { return std::max(0.f, peak) * 0.15f; }
 
   double phaseLengthSec() const {
     switch (phase) {
