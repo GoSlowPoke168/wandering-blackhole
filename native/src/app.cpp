@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <iterator>
 #include <fstream>
 #include <map>
 
@@ -37,7 +38,8 @@ static const Named kDrifts[] = { { L"Frozen", 0 }, { L"Slow", 0.35f }, { L"Norma
 static const Named kShrink[] = { { L"Quick (2s)", 2 }, { L"Gradual (6s)", 6 }, { L"Slow (12s)", 12 }, { L"Very slow (20s)", 20 } };
 static const Named kCurves[] = { { L"Steady", 1 }, { L"Late surge", 2.5f }, { L"Dramatic", 5 } };
 static const Named kHudBg[] = { { L"None", 0 }, { L"Faint", 0.35f }, { L"Dim", 0.65f },
-                                { L"Dark", 0.95f }, { L"Solid", 1 } };
+                                { L"Shaded", 0.8f }, { L"Dark", 0.95f }, { L"Solid", 1 } };
+static const int kHudBgCount = (int)std::size(kHudBg);   // counted, not typed twice
 struct Pin { const wchar_t* label; float x, y; };
 static const Pin kPins[] = { { L"Centre", 0.50f, 0.40f }, { L"Top left", 0.22f, 0.22f }, { L"Top right", 0.78f, 0.22f }, { L"Upper centre", 0.50f, 0.20f } };
 
@@ -462,7 +464,7 @@ void App::showMenu() {
   item(m, ID_IDLE_FADE, L"Fade when I am away", cfg_.idle.enabled);
   item(m, ID_HUD, L"Show HUD", cfg_.hudVisible);
   HMENU hb = CreatePopupMenu();
-  for (int i = 0; i < 5; i++) item(hb, ID_HUDBG + i, kHudBg[i].label, approx(cfg_.hudOpacity, kHudBg[i].v, 0.01f), true);
+  for (int i = 0; i < kHudBgCount; i++) item(hb, ID_HUDBG + i, kHudBg[i].label, approx(cfg_.hudOpacity, kHudBg[i].v, 0.01f), true);
   sep(hb); item(hb, 0, L"How much of the desktop it hides", false, false, false);
   sub(m, hb, L"HUD background", cfg_.hudVisible);
   item(m, ID_AUTOSTART, L"Start with Windows", cfg_.autostart);
@@ -484,7 +486,7 @@ void App::onCommand(int id) {
   if (id >= ID_DRIFT && id < ID_DRIFT + 4) { cfg_.free.driftSpeed = kDrifts[id - ID_DRIFT].v; pushState(); persist(); refreshTray(); return; }
   if (id >= ID_PIN && id < ID_PIN + 4) { pinAt(kPins[id - ID_PIN].x, kPins[id - ID_PIN].y); return; }
   if (id >= ID_CURVE && id < ID_CURVE + 3) { cfg_.pomodoro.growthCurve = kCurves[id - ID_CURVE].v; clock_.set(cfg_.pomodoro); pushState(); persist(); refreshTray(); return; }
-  if (id >= ID_HUDBG && id < ID_HUDBG + 5) { cfg_.hudOpacity = kHudBg[id - ID_HUDBG].v; pushState(); persist(); refreshTray(); return; }
+  if (id >= ID_HUDBG && id < ID_HUDBG + kHudBgCount) { cfg_.hudOpacity = kHudBg[id - ID_HUDBG].v; pushState(); persist(); refreshTray(); return; }
   switch (id) {
     case ID_PAUSE: setPaused(!cfg_.paused); break;
     case ID_HIDE: setHidden(!cfg_.hidden); break;

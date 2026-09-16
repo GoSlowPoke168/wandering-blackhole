@@ -61,7 +61,7 @@ scales with *Size before a break*, so choosing **Hidden** still hides it complet
 | **Look** | 7 presets: inferno, gargantua, m87\* donut, face-on ember, quasar, blazar, pure lens |
 | **Fade when I am away** | fade out after 90s of inactivity |
 | **Show HUD** | live stats in the corner |
-| **HUD background** | None / Faint / Dim / Dark / Solid — how much of the desktop the readout hides |
+| **HUD background** | None / Faint / Dim / Shaded / Dark / Solid — how much of the desktop the readout hides |
 | **Start with Windows** | registers a Run key for this exe |
 
 **Hide and pause** is the "leave it running but shut up" switch. It releases the capture,
