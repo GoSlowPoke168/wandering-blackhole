@@ -8,6 +8,7 @@
 #include <winrt/base.h>
 #include <winrt/Windows.Data.Json.h>
 #include <winrt/Windows.Foundation.Collections.h>
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 
@@ -101,6 +102,7 @@ Config loadConfig(const std::wstring& file) {
     for (int i = 0; i < LOOK_COUNT; i++) c.look[i] = (float)num(o, utf8ToWide(kLookNames[i]).c_str(), c.look[i]);
   c.autostart = boolv(root, L"autostart", c.autostart);
   c.hudVisible = boolv(root, L"hudVisible", c.hudVisible);
+  c.hudOpacity = (float)std::max(0.0, std::min(1.0, num(root, L"hudOpacity", c.hudOpacity)));
   return c;
 }
 
@@ -129,6 +131,7 @@ bool saveConfig(const std::wstring& file, const Config& c) {
   JsonObject lk; for (int i = 0; i < LOOK_COUNT; i++) lk.Insert(utf8ToWide(kLookNames[i]), N(c.look[i])); root.Insert(L"look", lk);
   root.Insert(L"autostart", B(c.autostart));
   root.Insert(L"hudVisible", B(c.hudVisible));
+  root.Insert(L"hudOpacity", N(c.hudOpacity));
 
   // Temp file + rename, so a crash mid-write cannot leave a truncated config.
   const std::wstring dir = file.substr(0, file.find_last_of(L"\\/"));

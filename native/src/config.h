@@ -22,6 +22,7 @@ struct Config {
   float look[LOOK_COUNT];
   bool autostart = false;
   bool hudVisible = false;
+  float hudOpacity = 0.95f;   // how far the HUD's ground hides what is behind it
 
   Config();
 };

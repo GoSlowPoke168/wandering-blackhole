@@ -8,6 +8,7 @@
 #include <d2d1_1.h>
 #include <dwrite.h>
 #include <wrl/client.h>
+#include <algorithm>
 #include <string>
 
 using Microsoft::WRL::ComPtr;
@@ -22,6 +23,8 @@ class Hud {
 public:
   bool init(ID3D11Device* dev, IDXGISwapChain1* swap, float scale, std::string* err);
   void setText(const std::wstring& text);
+  // 0 leaves the text on the bare desktop, 1 hides everything behind it.
+  void setOpacity(float a) { if (scrim_) scrim_->SetOpacity(std::max(0.f, std::min(1.f, a))); }
   RECT rect() const { return rect_; }        // window px, for the dirty-rect union
   void draw();
 private:

@@ -18,6 +18,7 @@
 // wander is evaluated per frame and never steps.
 struct Snapshot {
   bool hidden = false, hud = false;
+  float hudOpacity = 0.95f;
   Mode mode = Mode::Free;
   float level = 0;                 // target size incl. idle fade
   bool still = false; UV pinned{ 0.5f, 0.35f };

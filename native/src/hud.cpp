@@ -29,9 +29,10 @@ bool Hud::init(ID3D11Device* dev, IDXGISwapChain1* swap, float scale, std::strin
   ctx_->CreateSolidColorBrush(D2D1::ColorF(1.f, 176 / 255.f, 0.f, 1.f), &fg_);        // #FFB000
   // Lifted from #9A7330: legible on the ground, still clearly the quieter column.
   ctx_->CreateSolidColorBrush(D2D1::ColorF(0xBE / 255.f, 0x92 / 255.f, 0x45 / 255.f, 1.f), &dim_);
-  // Near enough to opaque that nothing behind reads through: anything less and busy windows
-  // under the readout fight the text, which is the whole reason the ground is here.
-  ctx_->CreateSolidColorBrush(D2D1::ColorF(0x05 / 255.f, 0x06 / 255.f, 0x0A / 255.f, 0.96f), &scrim_);
+  // Opaque here; how much of the desktop it hides is the user's setting, applied as brush
+  // opacity by setOpacity so the whole range from bare text to solid is reachable.
+  ctx_->CreateSolidColorBrush(D2D1::ColorF(0x05 / 255.f, 0x06 / 255.f, 0x0A / 255.f, 1.f), &scrim_);
+  scrim_->SetOpacity(0.95f);
 
   if (FAILED(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown**)dwrite_.GetAddressOf())))
     { *err = "DWriteCreateFactory"; return false; }

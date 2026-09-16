@@ -61,6 +61,7 @@ scales with *Size before a break*, so choosing **Hidden** still hides it complet
 | **Look** | 7 presets: inferno, gargantua, m87\* donut, face-on ember, quasar, blazar, pure lens |
 | **Fade when I am away** | fade out after 90s of inactivity |
 | **Show HUD** | live stats in the corner |
+| **HUD background** | None / Faint / Dim / Dark / Solid — how much of the desktop the readout hides |
 | **Start with Windows** | registers a Run key for this exe |
 
 **Hide and pause** is the "leave it running but shut up" switch. It releases the capture,
@@ -80,6 +81,9 @@ and the frame cost.
 
 Outlining the glyphs and skipping the ground was tried first — it looked better over a
 photograph and was unreadable over a code editor, which is where this actually gets used.
+**HUD background** sets how far the ground hides what is behind it, from `None` (that
+original bare-text version) through to `Solid`; it lives in `config.json` as `hudOpacity`
+if you want a value between the presets.
 
 `Growth` is worth trying. On **Late surge** (the default) a 55-minute block sits at 8% after
 20 minutes and 23% after 30, then climbs hard over the last 15 — it leaves you alone through

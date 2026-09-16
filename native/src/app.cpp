@@ -28,13 +28,16 @@ enum {
   ID_PAUSE = 100, ID_HIDE, ID_MODE_FREE, ID_MODE_POMO, ID_MODE_EYE, ID_EYE_TOGGLE, ID_EYE_BREAKNOW,
   ID_POMO_TOGGLE, ID_POMO_SKIP, ID_POMO_RESET, ID_WANDER, ID_PIN_CURSOR, ID_IDLE_FADE, ID_HUD,
   ID_AUTOSTART, ID_QUIT,
-  ID_SIZE = 200, ID_SHRINK = 210, ID_DRIFT = 220, ID_PIN = 230, ID_CURVE = 240, ID_PRESET = 300,
+  ID_SIZE = 200, ID_SHRINK = 210, ID_DRIFT = 220, ID_PIN = 230, ID_CURVE = 240, ID_HUDBG = 250,
+  ID_PRESET = 300,
 };
 struct Named { const wchar_t* label; float v; };
 static const Named kSizes[]  = { { L"Hidden", 0 }, { L"Small", 0.15f }, { L"Medium", 0.4f }, { L"Large", 0.7f }, { L"Full", 1 } };
 static const Named kDrifts[] = { { L"Frozen", 0 }, { L"Slow", 0.35f }, { L"Normal", 1 }, { L"Fast", 2.5f } };
 static const Named kShrink[] = { { L"Quick (2s)", 2 }, { L"Gradual (6s)", 6 }, { L"Slow (12s)", 12 }, { L"Very slow (20s)", 20 } };
 static const Named kCurves[] = { { L"Steady", 1 }, { L"Late surge", 2.5f }, { L"Dramatic", 5 } };
+static const Named kHudBg[] = { { L"None", 0 }, { L"Faint", 0.35f }, { L"Dim", 0.65f },
+                                { L"Dark", 0.95f }, { L"Solid", 1 } };
 struct Pin { const wchar_t* label; float x, y; };
 static const Pin kPins[] = { { L"Centre", 0.50f, 0.40f }, { L"Top left", 0.22f, 0.22f }, { L"Top right", 0.78f, 0.22f }, { L"Upper centre", 0.50f, 0.20f } };
 
@@ -277,6 +280,7 @@ void App::pushState() {
   snap_.phase = std::wstring(L"mode ") + modeShown +
                 (cfg_.mode == Mode::EyeBreak ? std::wstring(L" ") + eyePhase : std::wstring());
   snap_.hidden = cfg_.hidden; snap_.hud = cfg_.hudVisible; snap_.mode = cfg_.mode;
+  snap_.hudOpacity = cfg_.hudOpacity;
   snap_.level = level;
   snap_.still = cfg_.free.still; snap_.pinned = { cfg_.free.center[0], cfg_.free.center[1] };
   snap_.driftBase = driftTime_; snap_.driftSpeed = frozen() ? 0 : cfg_.free.driftSpeed; snap_.driftEpoch = now();
@@ -457,6 +461,10 @@ void App::showMenu() {
   sep(m);
   item(m, ID_IDLE_FADE, L"Fade when I am away", cfg_.idle.enabled);
   item(m, ID_HUD, L"Show HUD", cfg_.hudVisible);
+  HMENU hb = CreatePopupMenu();
+  for (int i = 0; i < 5; i++) item(hb, ID_HUDBG + i, kHudBg[i].label, approx(cfg_.hudOpacity, kHudBg[i].v, 0.01f), true);
+  sep(hb); item(hb, 0, L"How much of the desktop it hides", false, false, false);
+  sub(m, hb, L"HUD background", cfg_.hudVisible);
   item(m, ID_AUTOSTART, L"Start with Windows", cfg_.autostart);
   sep(m);
   item(m, ID_QUIT, L"Quit");
@@ -476,6 +484,7 @@ void App::onCommand(int id) {
   if (id >= ID_DRIFT && id < ID_DRIFT + 4) { cfg_.free.driftSpeed = kDrifts[id - ID_DRIFT].v; pushState(); persist(); refreshTray(); return; }
   if (id >= ID_PIN && id < ID_PIN + 4) { pinAt(kPins[id - ID_PIN].x, kPins[id - ID_PIN].y); return; }
   if (id >= ID_CURVE && id < ID_CURVE + 3) { cfg_.pomodoro.growthCurve = kCurves[id - ID_CURVE].v; clock_.set(cfg_.pomodoro); pushState(); persist(); refreshTray(); return; }
+  if (id >= ID_HUDBG && id < ID_HUDBG + 5) { cfg_.hudOpacity = kHudBg[id - ID_HUDBG].v; pushState(); persist(); refreshTray(); return; }
   switch (id) {
     case ID_PAUSE: setPaused(!cfg_.paused); break;
     case ID_HIDE: setHidden(!cfg_.hidden); break;
@@ -725,6 +734,7 @@ void App::renderLoop() {
       RECT dirty = unite(cur, wasDrawn[i] ? prev[i] : RECT{ 0, 0, 0, 0 });
       if (hudOn) {
         if (Hud* hud = o.hud()) {
+          hud->setOpacity(s.hudOpacity);
           // A paused snapshot carries driftSpeed 0; say so rather than report "wander 0.0x".
           const std::wstring motion = s.still ? L"still"
                                     : s.driftSpeed == 0 ? L"frozen"
