@@ -1,6 +1,7 @@
 # Milestone 0 — head-to-head capture measurement
 
-**THROWAWAY.** These two probes exist only to pick the stack. Neither is kept.
+**THROWAWAY.** These two probes existed only to pick the stack. The code is deleted; this
+and `RESULTS.md` are what remain of them.
 
 Both run a *passthrough* shader, not the geodesic one — this measures the capture path,
 nothing else.

@@ -3,7 +3,5 @@
   "version": "0.1.0",
   "private": true,
   "description": "A gravitationally-lensing black hole pomodoro timer for the Windows desktop",
-  "main": "src/main.js",
-  "scripts": { "start": "electron ." },
   "devDependencies": { "electron": "^33.0.0" }
 }

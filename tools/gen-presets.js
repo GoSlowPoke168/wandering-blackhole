@@ -1,10 +1,10 @@
 'use strict';
-// Emits native/src/presets.gen.h from the vendored GLSL via src/shader-patch.js, so the
+// Emits native/src/presets.gen.h from the vendored GLSL via shader-patch.js, so the
 // upstream shader stays the single source of truth for defaults and look presets.
 //     node tools/gen-presets.js
 const path = require('path');
 const fs = require('fs');
-const { build, presets, PROMOTE, LOOK_FIELDS } = require(path.join(__dirname, '..', 'src', 'shader-patch.js'));
+const { build, presets, PROMOTE, LOOK_FIELDS } = require(path.join(__dirname, 'shader-patch.js'));
 
 const defaults = build().defaults;
 const looks = presets();

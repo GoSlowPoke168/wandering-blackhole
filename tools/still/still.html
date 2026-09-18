@@ -4,10 +4,10 @@
 <script>
 'use strict';
 // Renders one case through the patched GLSL over an image, then composites and diffs it
-// against the native render. Same GL setup as src/index.html, minus the capture.
+// against the native render. Same GL setup the Electron build used, minus the capture.
 const { ipcRenderer } = require('electron');
 const path = require('path');
-const { build } = require(path.join(__dirname, '..', '..', 'src', 'shader-patch.js'));
+const { build } = require(path.join(__dirname, '..', 'shader-patch.js'));
 const BAD_THRESHOLD = 8;
 
 const canvas = document.getElementById('gl');

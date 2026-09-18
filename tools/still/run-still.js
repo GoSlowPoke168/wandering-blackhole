@@ -11,7 +11,7 @@ const fs = require('fs');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..', '..');
-const { build, presets } = require(path.join(ROOT, 'src', 'shader-patch.js'));
+const { build, presets } = require(path.join(ROOT, 'tools', 'shader-patch.js'));
 const OUT = path.join(__dirname, 'out');
 const IMG = path.join(__dirname, 'desktop.png');
 const EXE = path.join(ROOT, 'native', 'BlackHolePomodoro.exe');

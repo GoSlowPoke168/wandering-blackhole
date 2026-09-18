@@ -11,8 +11,8 @@ does this inside the Ghostty terminal. Here the whole desktop is the lensed sky.
 This is the **native** build: C++ / Direct3D 11 / Desktop Duplication / DirectComposition,
 no Electron at runtime. It replaced the Electron version because the lens trailed dragged
 windows by 3–4 frames there and nothing in JS could shorten Chromium's capture pipeline;
-here it is one frame. The Electron sources are kept under `src/` only for the shader-port
-check (see *Development*).
+here it is one frame. The Electron build is gone from here; it survives in the sibling
+`BlackHolePomodoro` folder as a fallback.
 
 ## Running
 
@@ -142,7 +142,7 @@ and the desktop recurses into itself forever. It needs Windows 10 2004+.
 
 ### The shader is patched, then ported
 
-`shader/blackhole.glsl` is upstream's file, vendored unmodified. `src/shader-patch.js`
+`shader/blackhole.glsl` is upstream's file, vendored unmodified. `tools/shader-patch.js`
 rewrites it in memory (26 tunables → uniforms, transparency, desktop UV remap, host-owned
 drift clock, position override — see the comments there), and `native/shader/blackhole.hlsl`
 is a hand port of *that* output with the Ghostty-only paths removed (cursor-token decode,
@@ -239,8 +239,8 @@ default late surge, higher = flatter for longer then steeper).
 The env vars force settings, so they never write to your real config. `SMOKE` also logs
 per-second render stats and how the first frames were classified (real vs echo).
 
-`probes/` holds the throwaway measurements that chose the original stack; `probes/RESULTS.md`
-is the record.
+`probes/` keeps the write-up of the throwaway measurements that chose this stack; the probe
+code itself is gone, in git history.
 
 ## Credits
 
