@@ -247,3 +247,5 @@ code itself is gone, in git history.
 Shader by [s0xDk](https://github.com/s0xDk/ghostty-blackhole) (MIT, vendored in `shader/`
 with its licence), after
 [Eric Bruneton's black hole shader](https://ebruneton.github.io/black_hole_shader/).
+
+MIT, like the shader it is built on — see `LICENSE`.
