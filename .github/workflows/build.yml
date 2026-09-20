@@ -28,19 +28,10 @@ jobs:
         shell: cmd
         run: native\test\run.bat
 
-      - name: Checksum
-        shell: pwsh
-        run: |
-          $h = (Get-FileHash native\WanderingBlackHole.exe -Algorithm SHA256).Hash.ToLower()
-          "$h  WanderingBlackHole.exe" | Set-Content SHA256SUMS.txt -Encoding ascii
-          Get-Content SHA256SUMS.txt
-
       - uses: actions/upload-artifact@v5
         with:
           name: WanderingBlackHole
-          path: |
-            native/WanderingBlackHole.exe
-            SHA256SUMS.txt
+          path: native/WanderingBlackHole.exe
 
       - name: Attest build provenance
         if: startsWith(github.ref, 'refs/tags/v')
@@ -53,4 +44,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$env:GITHUB_REF_NAME" native/WanderingBlackHole.exe SHA256SUMS.txt --generate-notes
+        run: gh release create "$env:GITHUB_REF_NAME" native/WanderingBlackHole.exe --generate-notes

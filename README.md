@@ -123,9 +123,9 @@ So, precisely:
   on the adapter driving the panel.
 - It stores settings in `%APPDATA%\wandering-blackhole\config.json` and nothing else.
 
-Release binaries are built by GitHub Actions from a tag, published with their SHA-256 in
-`SHA256SUMS.txt`, and carry a provenance attestation you can check with `gh attestation
-verify`. They are unsigned, so SmartScreen warns on first run.
+Release binaries are built by GitHub Actions from a tag and carry a provenance attestation
+you can check with `gh attestation verify`; GitHub shows each asset's own SHA-256. They are
+unsigned, so SmartScreen warns on first run.
 
 ## How it works
 
