@@ -9,7 +9,7 @@
 #pragma comment(lib, "gdi32.lib")
 
 volatile bool g_displayChanged = false;
-static const wchar_t* kClass = L"BlackHolePomodoroOverlay";
+static const wchar_t* kClass = L"WanderingBlackHoleOverlay";
 
 Overlay::Overlay(ComPtr<IDXGIAdapter1> adapter, ComPtr<IDXGIOutput1> output, HINSTANCE hinst)
   : adapter_(adapter), output_(output), hinst_(hinst) {}
@@ -59,7 +59,7 @@ bool Overlay::init(const std::wstring& hlslPath, std::wstring* err) {
   }
   const DWORD ex = WS_EX_NOREDIRECTIONBITMAP | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST |
                    WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
-  hwnd_ = CreateWindowExW(ex, kClass, L"Black Hole Pomodoro", WS_POPUP,
+  hwnd_ = CreateWindowExW(ex, kClass, L"Wandering Black Hole", WS_POPUP,
                           rect_.left, rect_.top, w, h, nullptr, nullptr, hinst_, nullptr);
   if (!hwnd_) return fail(L"CreateWindowEx", HRESULT_FROM_WIN32(GetLastError()));
   SetLayeredWindowAttributes(hwnd_, 0, 255, LWA_ALPHA);   // a layered window is hidden until told otherwise

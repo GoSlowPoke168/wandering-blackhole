@@ -1,5 +1,5 @@
 @echo off
-rem Builds native\BlackHolePomodoro.exe.
+rem Builds native\WanderingBlackHole.exe.
 rem The name matters: NVIDIA's driver profiles match on exe name, and a generic one such as
 rem overlay.exe gets forced onto the dGPU, under which Desktop Duplication is unsupported.
 setlocal
@@ -13,4 +13,4 @@ if errorlevel 1 ( echo Could not activate MSVC. & exit /b 1 )
 if not exist obj mkdir obj
 cl /nologo /EHsc /O2 /std:c++17 /W3 /DUNICODE /D_UNICODE /DNOMINMAX /Fo.\obj\ ^
    src\main.cpp src\app.cpp src\overlay.cpp src\renderer.cpp src\hud.cpp src\config.cpp src\still.cpp ^
-   /Fe:BlackHolePomodoro.exe /link /SUBSYSTEM:WINDOWS
+   /Fe:WanderingBlackHole.exe /link /SUBSYSTEM:WINDOWS

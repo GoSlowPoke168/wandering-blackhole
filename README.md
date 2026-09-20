@@ -1,4 +1,4 @@
-# Black Hole Pomodoro
+# Wandering Black Hole
 
 A ray-traced black hole that floats over your Windows desktop and gravitationally lenses
 your actual windows — text bends around it, mirrors inside the Einstein ring, and
@@ -18,10 +18,10 @@ here it is one frame. The Electron build is gone from here; it survives in the s
 
 ```
 native\build.bat          # needs Visual Studio 2022+ with the Windows 10/11 SDK
-native\BlackHolePomodoro.exe
+native\WanderingBlackHole.exe
 ```
 
-`run.bat` builds if needed and launches; `Black Hole Pomodoro.vbs` launches with no console.
+`run.bat` builds if needed and launches; `Wandering Black Hole.vbs` launches with no console.
 Requires Windows 10 2004+ (build 19041) — see *How it works*. Tested on Windows 11.
 
 ## Using it
@@ -104,8 +104,7 @@ the bulk of the session instead of looming the whole way.
 | `Ctrl+Alt+H` | HUD |
 | `Ctrl+Alt+Q` | **quit** |
 
-Settings persist to `%APPDATA%\blackhole-pomodoro\config.json` — the same file and schema
-as the Electron build, so they carry over.
+Settings persist to `%APPDATA%\wandering-blackhole\config.json`, written atomically.
 
 ## How it works
 
@@ -219,15 +218,15 @@ outputs), level 0.15, m87\* donut, static desktop, Balanced power mode:
 
 ```
 native\build.bat                                        # build
-set FAST=1& native\BlackHolePomodoro.exe                # a full pomodoro cycle in ~40s
-set IDLE_AFTER=5& native\BlackHolePomodoro.exe          # idle fade after 5s instead of 90
-set SMOKE=10& native\BlackHolePomodoro.exe              # run 10s, log to smoke.txt, quit
-set TOGGLE_HIDE=5& native\BlackHolePomodoro.exe         # hide at 5s, unhide at 10s
-set RESTART_AT=5& native\BlackHolePomodoro.exe          # force the resume/unlock capture restart
+set FAST=1& native\WanderingBlackHole.exe                # a full pomodoro cycle in ~40s
+set IDLE_AFTER=5& native\WanderingBlackHole.exe          # idle fade after 5s instead of 90
+set SMOKE=10& native\WanderingBlackHole.exe              # run 10s, log to smoke.txt, quit
+set TOGGLE_HIDE=5& native\WanderingBlackHole.exe         # hide at 5s, unhide at 10s
+set RESTART_AT=5& native\WanderingBlackHole.exe          # force the resume/unlock capture restart
 node_modules\.bin\electron tools\still\run-still.js     # shader port check (needs npm install)
 node tools\gen-presets.js                               # regenerate presets.gen.h after a shader update
 native\test\run.bat                                     # unit-check the pomodoro / eye-break clocks
-set BHP_CAPTURABLE=1& native\BlackHolePomodoro.exe      # drop the capture exclusion so the HUD can be screenshotted
+set BHP_CAPTURABLE=1& native\WanderingBlackHole.exe      # drop the capture exclusion so the HUD can be screenshotted
 ```
 
 `BHP_CAPTURABLE` exists only for working on the HUD: without the exclusion the lens captures

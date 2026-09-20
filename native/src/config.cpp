@@ -26,7 +26,7 @@ std::wstring configPath() {
   wchar_t* appdata = nullptr;
   std::wstring dir = L".";
   if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &appdata))) { dir = appdata; CoTaskMemFree(appdata); }
-  return dir + L"\\blackhole-pomodoro\\config.json";
+  return dir + L"\\wandering-blackhole\\config.json";
 }
 
 // Typed lookups that fall back to the default on a missing or mistyped key, which is

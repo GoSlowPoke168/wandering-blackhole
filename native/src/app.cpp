@@ -21,7 +21,7 @@
 
 static const UINT WM_APP_TRAY = WM_APP + 1;
 static const UINT_PTR TIMER_TICK = 1, TIMER_REBUILD = 2;
-static const wchar_t* kHostClass = L"BlackHolePomodoroHost";
+static const wchar_t* kHostClass = L"WanderingBlackHoleHost";
 static UINT g_taskbarCreated = 0;
 
 // Menu command ids. Ranges for the parametrised radio groups.
@@ -99,7 +99,7 @@ bool App::init() {
   RegisterClassW(&wc);
   // A real (never shown) top-level window, not a message-only one: WM_DISPLAYCHANGE and
   // WM_POWERBROADCAST are broadcast to top-level windows only.
-  hwnd_ = CreateWindowExW(0, kHostClass, L"Black Hole Pomodoro", WS_OVERLAPPED, 0, 0, 0, 0, nullptr, nullptr, hinst_, this);
+  hwnd_ = CreateWindowExW(0, kHostClass, L"Wandering Black Hole", WS_OVERLAPPED, 0, 0, 0, 0, nullptr, nullptr, hinst_, this);
   if (!hwnd_) return false;
   WTSRegisterSessionNotification(hwnd_, NOTIFY_FOR_THIS_SESSION);
   g_taskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
@@ -109,8 +109,8 @@ bool App::init() {
     if (!RegisterHotKey(hwnd_, k.id, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, k.vk)) failed += std::wstring(failed.empty() ? L"" : L", ") + k.name;
   smoke(L"shortcuts: " + (failed.empty() ? L"all registered ok" : L"FAILED -> " + failed));
   if (failed.find(L"Control+Alt+Q") != std::wstring::npos) {
-    MessageBoxW(nullptr, L"Could not register Ctrl+Alt+Q - is Black Hole Pomodoro already running?\n\nRefusing to run without a quit key.",
-                L"Black Hole Pomodoro", MB_ICONERROR);
+    MessageBoxW(nullptr, L"Could not register Ctrl+Alt+Q - is Wandering Black Hole already running?\n\nRefusing to run without a quit key.",
+                L"Wandering Black Hole", MB_ICONERROR);
     return false;
   }
 
@@ -167,8 +167,8 @@ bool App::gpuGuard() {
   if (!remapped) return true;
   if (!env(L"BHP_RELAUNCHED").empty()) {
     MessageBoxW(nullptr, L"Windows keeps assigning this process to a GPU that does not drive the display, so the desktop cannot be captured.\n\n"
-                L"Settings > System > Display > Graphics: add BlackHolePomodoro.exe and pick the GPU that drives your screen.",
-                L"Black Hole Pomodoro", MB_ICONWARNING);
+                L"Settings > System > Display > Graphics: add WanderingBlackHole.exe and pick the GPU that drives your screen.",
+                L"Wandering Black Hole", MB_ICONWARNING);
     return true;   // run anyway; the capture retry loop will keep trying
   }
   // Which preference names the owning adapter? 1 = power saving, 2 = high performance.
@@ -214,7 +214,7 @@ void App::buildOverlays() {
       std::wstring err;
       if (!ov->init(hlsl_, &err)) {
         smoke(L"overlay " + std::wstring(od.DeviceName) + L" failed: " + err);
-        if (err.rfind(L"shader:", 0) == 0) MessageBoxW(nullptr, err.c_str(), L"Black Hole Pomodoro - shader", MB_ICONERROR);
+        if (err.rfind(L"shader:", 0) == 0) MessageBoxW(nullptr, err.c_str(), L"Wandering Black Hole - shader", MB_ICONERROR);
         continue;
       }
       ov->setDebug(smokeOn_);
@@ -326,8 +326,8 @@ void App::setAutostart(bool on) {
   cfg_.autostart = on;
   HKEY key;
   if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr) == ERROR_SUCCESS) {
-    if (on) { const std::wstring v = L"\"" + exePath() + L"\""; RegSetValueExW(key, L"BlackHolePomodoro", 0, REG_SZ, (const BYTE*)v.c_str(), (DWORD)((v.size() + 1) * sizeof(wchar_t))); }
-    else RegDeleteValueW(key, L"BlackHolePomodoro");
+    if (on) { const std::wstring v = L"\"" + exePath() + L"\""; RegSetValueExW(key, L"WanderingBlackHole", 0, REG_SZ, (const BYTE*)v.c_str(), (DWORD)((v.size() + 1) * sizeof(wchar_t))); }
+    else RegDeleteValueW(key, L"WanderingBlackHole");
     RegCloseKey(key);
   }
   persist(); refreshTray();
@@ -354,7 +354,7 @@ void App::tick() {
   if (trayDirty) refreshTray();
   else if (t - lastTray >= 1.0) {
     lastTray = t;
-    const std::wstring tip = L"Black Hole Pomodoro - " + statusLine();
+    const std::wstring tip = L"Wandering Black Hole - " + statusLine();
     if (tip != lastTip_ && trayAdded_) {
       lastTip_ = tip;
       NOTIFYICONDATAW nid{ sizeof(nid) }; nid.hWnd = hwnd_; nid.uID = 1; nid.uFlags = NIF_TIP;
@@ -381,7 +381,7 @@ void App::refreshTray() {
   const int iconState = cfg_.hidden ? 0 : (cfg_.paused ? 1 : ((free || clock_.running) ? 2 : 1));
   NOTIFYICONDATAW nid{ sizeof(nid) }; nid.hWnd = hwnd_; nid.uID = 1;
   nid.uFlags = NIF_TIP | NIF_MESSAGE; nid.uCallbackMessage = WM_APP_TRAY;
-  lastTip_ = L"Black Hole Pomodoro - " + statusLine();
+  lastTip_ = L"Wandering Black Hole - " + statusLine();
   wcsncpy_s(nid.szTip, lastTip_.c_str(), _TRUNCATE);
   if (iconState != lastTrayIconState_ || !trayAdded_) {
     lastTrayIconState_ = iconState;

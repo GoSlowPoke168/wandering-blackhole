@@ -1,6 +1,5 @@
 #pragma once
-// Port of src/config.js. Same file, same schema, so settings carry over from the Electron
-// build: %APPDATA%\blackhole-pomodoro\config.json.
+// Settings live at %APPDATA%\wandering-blackhole\config.json.
 #include <string>
 #include "renderer.h"
 #include "pomodoro.h"
