@@ -106,6 +106,27 @@ the bulk of the session instead of looming the whole way.
 
 Settings persist to `%APPDATA%\wandering-blackhole\config.json`, written atomically.
 
+## What it does to your system
+
+Worth reading before you run a build you did not compile yourself: an always-on program
+that reads the screen and hides itself from capture is also a fair description of spyware.
+So, precisely:
+
+- It captures the screen continuously through Desktop Duplication. That is how it lenses
+  the windows behind it, and it is the whole reason the app exists.
+- It sets `WDA_EXCLUDEFROMCAPTURE` on its own windows so it never recurses into its own
+  output. The side effect is that it is invisible in screenshots and screen shares.
+- It has no network code at all. Nothing leaves the machine.
+- It registers 14 global `Ctrl+Alt` hotkeys.
+- It writes two `HKCU` values: the `CurrentVersion\Run` autostart entry, only when you turn
+  autostart on, and a per-app GPU preference on hybrid laptops so Desktop Duplication lands
+  on the adapter driving the panel.
+- It stores settings in `%APPDATA%\wandering-blackhole\config.json` and nothing else.
+
+Release binaries are built by GitHub Actions from a tag, published with their SHA-256 in
+`SHA256SUMS.txt`, and carry a provenance attestation you can check with `gh attestation
+verify`. They are unsigned, so SmartScreen warns on first run.
+
 ## How it works
 
 | | |
