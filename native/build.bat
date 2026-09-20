@@ -11,6 +11,6 @@ if not defined VSDIR ( echo Visual Studio is installed without the C++ desktop w
 call "%VSDIR%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
 if errorlevel 1 ( echo Could not activate MSVC. & exit /b 1 )
 if not exist obj mkdir obj
-cl /nologo /EHsc /O2 /std:c++17 /W3 /DUNICODE /D_UNICODE /DNOMINMAX /Fo.\obj\ ^
+cl /nologo /EHsc /O2 /std:c++20 /W3 /DUNICODE /D_UNICODE /DNOMINMAX /Fo.\obj\ ^
    src\main.cpp src\app.cpp src\overlay.cpp src\renderer.cpp src\hud.cpp src\config.cpp src\still.cpp ^
    /Fe:WanderingBlackHole.exe /link /SUBSYSTEM:WINDOWS
