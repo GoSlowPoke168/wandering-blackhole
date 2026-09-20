@@ -3,6 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "A gravitationally-lensing black hole pomodoro timer for the Windows desktop",
+  "description": "A ray-traced black hole that floats over your Windows desktop and gravitationally lenses your actual windows",
   "devDependencies": { "electron": "^33.0.0" }
 }
