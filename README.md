@@ -8,6 +8,8 @@ when it is time to stop.
 Windows port of [s0xDk/ghostty-blackhole](https://github.com/s0xDk/ghostty-blackhole), which
 does this inside the Ghostty terminal. Here the whole desktop is the lensed sky.
 
+[Showcase Video Coming Soon!]
+
 ## Install
 
 Download `WanderingBlackHole.exe` from [Releases](../../releases) and run it — one file, no
